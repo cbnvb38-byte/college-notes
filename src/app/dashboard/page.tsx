@@ -41,7 +41,7 @@ interface Profile {
   email: string;
   name: string | null;
   avatar_url: string | null;
-  role: "student" | "admin";
+  role: "student" | "moderator" | "admin";
 }
 
 interface FavoriteNote {
@@ -67,7 +67,7 @@ interface Note {
   file_type: string;
   file_size: number;
   semester: number;
-  status: "pending" | "approved" | "rejected";
+  status: "draft" | "pending_review" | "approved" | "rejected" | "removed";
   downloads_count: number;
   created_at: string;
 }
@@ -116,7 +116,7 @@ export default function Dashboard() {
         file_type: "application/pdf",
         file_size: 2100000,
         semester: 4,
-        status: "pending",
+        status: "pending_review",
         downloads_count: 0,
         created_at: new Date(Date.now() - 3600000 * 5).toISOString()
       },
@@ -186,12 +186,12 @@ export default function Dashboard() {
 
         // Fetch user's bookmarked favorites
         const { data: favsData, error: favsError } = await supabase
-          .from("favorites")
+          .from("bookmarks")
           .select("*, notes(*)")
           .eq("user_id", userId);
 
         if (favsError) throw favsError;
-        setFavorites(favsData || []);
+        setFavorites((favsData as any) || []);
 
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
@@ -381,7 +381,7 @@ export default function Dashboard() {
                                 <CheckCircle2 className="h-3 w-3" /> Approved
                               </span>
                             )}
-                            {note.status === "pending" && (
+                            {note.status === "pending_review" && (
                               <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-amber-500/25 bg-amber-500/10 text-[10px] text-amber-400 font-bold uppercase tracking-wider">
                                 <Clock className="h-3 w-3 animate-spin" /> Pending Review
                               </span>

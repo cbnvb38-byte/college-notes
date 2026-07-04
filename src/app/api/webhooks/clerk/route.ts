@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     const name = [first_name, last_name].filter(Boolean).join(" ");
     
     // Check user profiles count to decide if this is the first user
-    let role = "student";
+    let role: "student" | "moderator" | "admin" = "student";
     try {
       const { count, error: countError } = await supabase
         .from("profiles")

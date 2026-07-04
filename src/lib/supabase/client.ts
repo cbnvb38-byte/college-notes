@@ -1,13 +1,24 @@
 import { createClient } from "@supabase/supabase-js";
+import { Database } from "./types";
 
-export const createClerkSupabaseClient = (getToken: () => Promise<string | null>) => {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+export const createClerkSupabaseClient = (
+  getToken: (options?: { template?: string }) => Promise<string | null>
+) => {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL is missing.");
+  }
+  if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.");
+  }
+
+  return createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       global: {
         fetch: async (url, options = {}) => {
-          const token = await getToken();
+          // Fetch token specifically matching Clerk's Supabase JWT template
+          const token = await getToken({ template: "supabase" });
           const headers = new Headers(options.headers);
           if (token) {
             headers.set("Authorization", `Bearer ${token}`);
