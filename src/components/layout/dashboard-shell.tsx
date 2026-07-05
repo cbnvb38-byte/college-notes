@@ -19,7 +19,8 @@ import {
   Bell,
   LogOut,
   ChevronRight,
-  GraduationCap
+  GraduationCap,
+  FileUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +49,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Upload Note", href: "/dashboard/upload", icon: UploadCloud },
+    { name: "Upload Notes", href: "/dashboard/upload", icon: UploadCloud },
+    { name: "My Uploads", href: "/dashboard/my-uploads", icon: FileUp },
     { name: "Browse Notes", href: "/dashboard/browse", icon: Search },
     { name: "My Notes", href: "/dashboard/my-notes", icon: BookOpen },
     { name: "Bookmarks", href: "/dashboard/bookmarks", icon: Bookmark },

@@ -1,7 +1,8 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { auth } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { noteUploadSchema } from "@/lib/validation";
 import { AppError, handleDatabaseError, handleError } from "@/lib/errors";
 
@@ -13,10 +14,13 @@ export async function fetchBranches() {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from("branches")
-      .select("id, name, code")
+      .select("*")
       .order("name", { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      console.error("[Database Operations Failure - fetchBranches]:", error);
+      throw error;
+    }
     return { success: true, data };
   } catch (error) {
     return handleError(error);
@@ -38,12 +42,15 @@ export async function fetchSubjectsForBranch(branchId: string, semester: number)
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from("subjects")
-      .select("id, name, code, semester")
+      .select("*")
       .eq("branch_id", branchId)
       .eq("semester", semester)
       .order("name", { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      console.error("[Database Operations Failure - fetchSubjectsForBranch]:", error);
+      throw error;
+    }
     return { success: true, data };
   } catch (error) {
     return handleError(error);
@@ -83,8 +90,32 @@ export async function uploadNoteAction(formData: FormData) {
     const input = validated.data;
     const file = input.file as File;
 
-    // 4. Initialize Supabase client
-    const supabase = await createServerSupabaseClient();
+    // 4. Initialize Supabase service-role client (bypasses RLS).
+    // This is safe because Clerk auth() has already verified the user above.
+    const supabase = createServiceRoleSupabaseClient();
+
+    // 4.5. Check for duplicate upload (same author, same title, same size)
+    const { data: existingNotes, error: checkError } = await supabase
+      .from("notes")
+      .select("id")
+      .eq("author_id", userId)
+      .eq("title", input.title)
+      .eq("file_size", file.size)
+      .limit(1);
+
+    //if (checkError) {
+     // console.error("[Duplicate Check Error]:", checkError);
+     // throw new AppError("Failed to check for duplicate notes.", 500, "DATABASE_ERROR");
+    //}
+    if (checkError) {
+  console.log("========== DUPLICATE ERROR ==========");
+  console.log(JSON.stringify(checkError, null, 2));
+  throw checkError;
+}
+
+    if (existingNotes && existingNotes.length > 0) {
+      throw new AppError("A note with the same title and file size already exists. Duplicate uploads are not allowed.", 409, "DUPLICATE_UPLOAD");
+    }
 
     // 5. Generate a unique ID for the note log
     const noteId = crypto.randomUUID();
@@ -141,6 +172,9 @@ export async function uploadNoteAction(formData: FormData) {
       handleDatabaseError(dbError);
     }
 
+    // 9. Revalidate the my-uploads page cache
+    revalidatePath("/dashboard/my-uploads");
+
     return {
       success: true,
       data: {
@@ -153,3 +187,68 @@ export async function uploadNoteAction(formData: FormData) {
     return handleError(error);
   }
 }
+
+/**
+ * Deletes a note from the database and removes its associated file from storage.
+ */
+export async function deleteNoteAction(noteId: string) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      throw new AppError("You must be logged in to delete notes", 401, "UNAUTHORIZED");
+    }
+
+    if (!noteId) {
+      throw new AppError("Note ID is required", 400, "INVALID_INPUT");
+    }
+
+    // Use service-role client (Clerk auth already verified user above)
+    const supabase = createServiceRoleSupabaseClient();
+
+    // 1. Fetch the note to verify ownership and get the file path
+    const { data: note, error: fetchError } = await supabase
+      .from("notes")
+      .select("author_id, file_path")
+      .eq("id", noteId)
+      .single();
+
+    if (fetchError || !note) {
+      throw new AppError("Note not found or could not be accessed.", 404, "NOT_FOUND");
+    }
+
+    if (note.author_id !== userId) {
+      throw new AppError("You do not have permission to delete this note.", 403, "FORBIDDEN");
+    }
+
+    // 2. Delete the file from Supabase storage
+    if (note.file_path) {
+      const { error: storageError } = await supabase.storage
+        .from("notes")
+        .remove([note.file_path]);
+
+      if (storageError) {
+        console.error("[Storage Delete Error]:", storageError);
+        // We log the error but proceed to delete the database row anyway,
+        // so the user is not permanently stuck if the file is already gone.
+      }
+    }
+
+    // 3. Delete the database row
+    const { error: dbError } = await supabase
+      .from("notes")
+      .delete()
+      .eq("id", noteId);
+
+    if (dbError) {
+      handleDatabaseError(dbError);
+    }
+
+    // 4. Revalidate the my-uploads page cache
+    revalidatePath("/dashboard/my-uploads");
+
+    return { success: true };
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
