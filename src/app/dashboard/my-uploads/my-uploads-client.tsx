@@ -14,10 +14,11 @@ import {
   Loader2,
   FileWarning
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { deleteNoteAction } from "@/app/actions/notes";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 interface Note {
   id: string;
@@ -174,14 +175,15 @@ export default function MyUploadsClient({ initialNotes }: { initialNotes: Note[]
                   {/* Actions Section */}
                   <div className="p-3 bg-zinc-900/60 flex items-center justify-between gap-2">
                     <div className="flex gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => window.open(note.file_url, '_blank')}
-                        className="h-8 text-xs text-zinc-400 hover:text-indigo-400 hover:bg-indigo-500/10"
+                      <Link 
+                        href={`/notes/${note.id}`}
+                        className={cn(
+                          buttonVariants({ variant: "ghost", size: "sm" }),
+                          "h-8 text-xs text-zinc-400 hover:text-indigo-400 hover:bg-indigo-500/10 inline-flex items-center"
+                        )}
                       >
                         <Eye className="h-3.5 w-3.5 mr-1.5" /> View
-                      </Button>
+                      </Link>
                       <Button variant="ghost" size="sm" disabled className="h-8 text-xs text-zinc-600">
                         <Edit className="h-3.5 w-3.5 mr-1.5" /> Edit
                       </Button>

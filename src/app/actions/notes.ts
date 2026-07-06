@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { noteUploadSchema } from "@/lib/validation";
 import { AppError, handleDatabaseError, handleError } from "@/lib/errors";
@@ -251,4 +252,416 @@ export async function deleteNoteAction(noteId: string) {
     return handleError(error);
   }
 }
+
+export interface BrowseNotesFilters {
+  search?: string;
+  branchId?: string;
+  semester?: number;
+  subjectId?: string;
+  sortBy?: "newest" | "downloads" | "views";
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * Searches, filters, sorts, and paginates approved study notes.
+ */
+export async function browseNotesAction(filters: BrowseNotesFilters) {
+  try {
+    const search = filters.search?.trim();
+    const branchId = filters.branchId;
+    const semester = filters.semester;
+    const subjectId = filters.subjectId;
+    const sortBy = filters.sortBy || "newest";
+    const page = filters.page || 1;
+    const limit = filters.limit || 10;
+
+    // Use service-role client to bypass Profiles RLS so we can retrieve uploader names.
+    const supabase = createServiceRoleSupabaseClient();
+
+    let matchedSubjectIds: string[] = [];
+
+    // Step 1: Search by subject name if search text is provided
+    if (search) {
+      const { data: matchedSubjects, error: subjectError } = await supabase
+        .from("subjects")
+        .select("id")
+        .ilike("name", `%${search}%`);
+
+      if (subjectError) {
+        console.error("[Database Operations Failure - browseNotesAction - subject search]:", subjectError);
+        throw subjectError;
+      }
+
+      if (matchedSubjects) {
+        matchedSubjectIds = matchedSubjects.map((s) => s.id);
+      }
+    }
+
+    // Step 2: Build main query
+    let query = supabase
+      .from("notes")
+      .select(`
+        id,
+        title,
+        description,
+        semester,
+        college,
+        professor,
+        downloads_count,
+        bookmarks_count,
+        view_count,
+        created_at,
+        file_url,
+        profiles (
+          name
+        ),
+        subjects!inner (
+          id,
+          name,
+          code,
+          branches!inner (
+            id,
+            name,
+            code
+          )
+        )
+      `, { count: "exact" })
+      .eq("status", "approved");
+
+    // Search condition across title, professor, college, or subject names
+    if (search) {
+      let orConditions = [
+        `title.ilike.%${search}%`,
+        `professor.ilike.%${search}%`,
+        `college.ilike.%${search}%`
+      ];
+
+      if (matchedSubjectIds.length > 0) {
+        orConditions.push(`subject_id.in.(${matchedSubjectIds.map(id => `"${id}"`).join(",")})`);
+      }
+
+      query = query.or(orConditions.join(","));
+    }
+
+    // Dynamic filtering
+    if (branchId && branchId !== "all") {
+      query = query.eq("subjects.branch_id", branchId);
+    }
+    if (semester && semester !== 0) {
+      query = query.eq("semester", semester);
+    }
+    if (subjectId && subjectId !== "all") {
+      query = query.eq("subject_id", subjectId);
+    }
+
+    // Sorting
+    if (sortBy === "newest") {
+      query = query.order("created_at", { ascending: false });
+    } else if (sortBy === "downloads") {
+      query = query.order("downloads_count", { ascending: false });
+    } else if (sortBy === "views") {
+      query = query.order("view_count", { ascending: false });
+    }
+
+    // Pagination bounds
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    const { data: notes, count, error: notesError } = await query.range(from, to);
+
+    if (notesError) {
+      console.error("[Database Operations Failure - browseNotesAction - notes query]:", notesError);
+      throw notesError;
+    }
+
+    const totalCount = count || 0;
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return {
+      success: true,
+      data: {
+        notes: notes || [],
+        totalCount,
+        page,
+        totalPages,
+      },
+    };
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+/**
+ * Fetches note details, average rating, and related notes list.
+ */
+export async function fetchNoteDetailsAction(noteId: string) {
+  try {
+    if (!noteId) {
+      throw new AppError("Note ID is required", 400, "INVALID_INPUT");
+    }
+
+    const supabase = createServiceRoleSupabaseClient();
+
+    // 1. Fetch note with profile, subject, and branch details
+    const { data: note, error: noteError } = await supabase
+      .from("notes")
+      .select(`
+        id,
+        title,
+        description,
+        semester,
+        college,
+        professor,
+        downloads_count,
+        bookmarks_count,
+        view_count,
+        created_at,
+        file_url,
+        file_size,
+        status,
+        profiles (
+          name
+        ),
+        subjects!inner (
+          id,
+          name,
+          code,
+          branch_id,
+          branches!inner (
+            id,
+            name,
+            code
+          )
+        )
+      `)
+      .eq("id", noteId)
+      .single();
+
+    if (noteError || !note) {
+      console.error("[Database Operations Failure - fetchNoteDetailsAction - fetch note]:", noteError);
+      throw new AppError("Note not found or could not be accessed.", 404, "NOT_FOUND");
+    }
+
+    // Only approved notes can be publicly viewed
+    if (note.status !== "approved") {
+      throw new AppError("Note not found or could not be accessed.", 404, "NOT_FOUND");
+    }
+
+    // 2. Fetch rating details for this note
+    const { data: ratingsData, error: ratingsError } = await supabase
+      .from("ratings")
+      .select("rating")
+      .eq("note_id", noteId);
+
+    let averageRating = 0;
+    if (ratingsData && ratingsData.length > 0) {
+      const sum = ratingsData.reduce((acc, curr) => acc + curr.rating, 0);
+      averageRating = parseFloat((sum / ratingsData.length).toFixed(1));
+    }
+
+    // 3. Fetch related notes (same subject OR same semester), excluding the current note
+    const subjectId = note.subjects.id;
+    const sem = note.semester;
+
+    const { data: relatedNotes, error: relatedError } = await supabase
+      .from("notes")
+      .select(`
+        id,
+        title,
+        semester,
+        downloads_count,
+        view_count,
+        created_at,
+        subjects!inner (
+          name,
+          branches!inner (
+            name,
+            code
+          )
+        )
+      `)
+      .eq("status", "approved")
+      .neq("id", noteId)
+      .or(`subject_id.eq.${subjectId},semester.eq.${sem}`)
+      .limit(4);
+
+    if (relatedError) {
+      console.error("[Database Operations Failure - fetchNoteDetailsAction - related notes]:", relatedError);
+    }
+
+    return {
+      success: true,
+      data: {
+        note,
+        averageRating,
+        relatedNotes: relatedNotes || []
+      }
+    };
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+/**
+ * Increments the view count of a note by 1.
+ */
+export async function incrementViewCountAction(noteId: string) {
+  try {
+    console.log(`[DEBUG incrementViewCountAction] Entered for noteId: ${noteId}`);
+    if (!noteId) {
+      throw new AppError("Note ID is required", 400, "INVALID_INPUT");
+    }
+
+    const supabase = createServiceRoleSupabaseClient();
+    console.log("[DEBUG incrementViewCountAction] Supabase service-role client created");
+
+    // 1. Fetch current view count
+    const { data: note, error: fetchError } = await supabase
+      .from("notes")
+      .select("view_count, status")
+      .eq("id", noteId)
+      .single();
+
+    console.log("[DEBUG incrementViewCountAction] Fetch note result:", {
+      note,
+      error: fetchError ? { code: fetchError.code, message: fetchError.message } : null
+    });
+
+    if (fetchError || !note) {
+      console.error("[Database Operations Failure - incrementViewCountAction - fetch]:", fetchError);
+      throw new AppError("Note not found.", 404, "NOT_FOUND");
+    }
+
+    if (note.status !== "approved") {
+      throw new AppError("Note is not approved.", 403, "FORBIDDEN");
+    }
+
+    // 2. Increment view_count
+    const { data: updateData, error: updateError } = await supabase
+      .from("notes")
+      .update({ view_count: note.view_count + 1 })
+      .eq("id", noteId)
+      .select();
+
+    console.log("[DEBUG incrementViewCountAction] Update note result:", {
+      updateData,
+      error: updateError ? { code: updateError.code, message: updateError.message } : null
+    });
+
+    if (updateError) {
+      console.error("[Database Operations Failure - incrementViewCountAction - update]:", updateError);
+      throw updateError;
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("[DEBUG incrementViewCountAction] Caught error:", error);
+    return handleError(error);
+  }
+}
+
+/**
+ * Logs a download event in the downloads table and increments the downloads count on the note.
+ */
+export async function logDownloadAction(noteId: string) {
+  try {
+    console.log(`[DEBUG logDownloadAction] Entered for noteId: ${noteId}`);
+    if (!noteId) {
+      throw new AppError("Note ID is required", 400, "INVALID_INPUT");
+    }
+
+    const { userId } = await auth(); // Clerk user ID (can be null if anonymous)
+    const requestHeaders = await headers();
+    const ipAddress = requestHeaders.get("x-forwarded-for")?.split(",")[0].trim() || requestHeaders.get("x-real-ip") || null;
+
+    console.log("[DEBUG logDownloadAction] Context:", { userId, ipAddress });
+
+    const supabase = createServiceRoleSupabaseClient();
+    console.log("[DEBUG logDownloadAction] Supabase service-role client created");
+
+    // 1. Fetch note to verify it exists and get current downloads_count
+    const { data: note, error: fetchError } = await supabase
+      .from("notes")
+      .select("downloads_count, file_url, status")
+      .eq("id", noteId)
+      .single();
+
+    console.log("[DEBUG logDownloadAction] Fetch note result:", {
+      note,
+      error: fetchError ? { code: fetchError.code, message: fetchError.message } : null
+    });
+
+    if (fetchError || !note) {
+      console.error("[Database Operations Failure - logDownloadAction - fetch note]:", fetchError);
+      throw new AppError("Note not found.", 404, "NOT_FOUND");
+    }
+
+    if (note.status !== "approved") {
+      throw new AppError("Note is not approved for download.", 403, "FORBIDDEN");
+    }
+
+    // Verify if Clerk user exists in public.profiles to prevent foreign key violations
+    let finalUserId = null;
+    if (userId) {
+      const { data: profileExists } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", userId)
+        .single();
+        
+      if (profileExists) {
+        finalUserId = userId;
+      } else {
+        console.warn(`[DEBUG logDownloadAction] Clerk user ${userId} does not have a corresponding record in public.profiles table. Logging download with user_id = null.`);
+      }
+    }
+
+    // 2. Insert record in downloads table
+    const { data: insertData, error: insertError } = await supabase
+      .from("downloads")
+      .insert({
+        note_id: noteId,
+        user_id: finalUserId,
+        ip_address: ipAddress
+      })
+      .select();
+
+    console.log("[DEBUG logDownloadAction] Insert download result:", {
+      insertData,
+      error: insertError ? { code: insertError.code, message: insertError.message } : null
+    });
+
+    if (insertError) {
+      console.error("[Database Operations Failure - logDownloadAction - insert download]:", insertError);
+    }
+
+    // 3. Increment downloads_count
+    const { data: updateData, error: updateError } = await supabase
+      .from("notes")
+      .update({ downloads_count: note.downloads_count + 1 })
+      .eq("id", noteId)
+      .select();
+
+    console.log("[DEBUG logDownloadAction] Update note result:", {
+      updateData,
+      error: updateError ? { code: updateError.code, message: updateError.message } : null
+    });
+
+    if (updateError) {
+      console.error("[Database Operations Failure - logDownloadAction - increment count]:", updateError);
+    }
+
+    return {
+      success: true,
+      data: {
+        fileUrl: note.file_url
+      }
+    };
+  } catch (error) {
+    console.error("[DEBUG logDownloadAction] Caught error:", error);
+    return handleError(error);
+  }
+}
+
 

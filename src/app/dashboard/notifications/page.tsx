@@ -14,40 +14,7 @@ interface NotificationItem {
   read: boolean;
 }
 
-const initialNotifications: NotificationItem[] = [
-  {
-    id: "1",
-    title: "Note Approved",
-    description: "Your note 'Compiler Design Handouts' has been approved by the admin team.",
-    type: "success",
-    time: "3 hours ago",
-    read: false
-  },
-  {
-    id: "2",
-    title: "New Note Uploaded",
-    description: "You uploaded 'DBMS Midterm Review Sheets' for review.",
-    type: "info",
-    time: "5 hours ago",
-    read: false
-  },
-  {
-    id: "3",
-    title: "Note Rejected",
-    description: "Your note 'Physics II Lab Manuals' was rejected. Click to see rejection notes.",
-    type: "warning",
-    time: "2 days ago",
-    read: true
-  },
-  {
-    id: "4",
-    title: "Community Badge Unlocked",
-    description: "Congratulations! You have unlocked the 'First Contribution' community badge.",
-    type: "achievement",
-    time: "1 week ago",
-    read: true
-  }
-];
+const initialNotifications: NotificationItem[] = [];
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState(initialNotifications);

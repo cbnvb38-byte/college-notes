@@ -80,76 +80,7 @@ export default function Dashboard() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [searchQuery, _setSearchQuery] = useState("");
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_isUsingMockData, setIsUsingMockData] = useState(false);
-
-  // Seeding beautiful mock database states — declared before useEffect so it can be called inside
-  const loadMockData = () => {
-    setProfile({
-      id: user?.id || "mock_user",
-      email: user?.primaryEmailAddress?.emailAddress || "student@college.edu",
-      name: user?.fullName || "Jane Doe",
-      avatar_url: user?.imageUrl || null,
-      role: "student"
-    });
-
-    setNotes([
-      {
-        id: "note-1",
-        title: "Compiler Design Handouts",
-        description: "Complete compiler construction lectures on lexing and parsing.",
-        file_url: "#",
-        file_type: "application/pdf",
-        file_size: 4500000,
-        semester: 5,
-        status: "approved",
-        downloads_count: 142,
-        created_at: new Date(Date.now() - 3600000 * 24 * 3).toISOString()
-      },
-      {
-        id: "note-2",
-        title: "DBMS Midterm Review Sheets",
-        description: "SQL joins, indexing, Normalization theory review.",
-        file_url: "#",
-        file_type: "application/pdf",
-        file_size: 2100000,
-        semester: 4,
-        status: "pending_review",
-        downloads_count: 0,
-        created_at: new Date(Date.now() - 3600000 * 5).toISOString()
-      },
-      {
-        id: "note-3",
-        title: "Physics II Lab Manuals",
-        description: "Electromagnetism experiments details and lab report format.",
-        file_url: "#",
-        file_type: "application/pdf",
-        file_size: 8900000,
-        semester: 2,
-        status: "rejected",
-        created_at: new Date(Date.now() - 3600000 * 24 * 12).toISOString(),
-        downloads_count: 0
-      }
-    ]);
-
-    setFavorites([
-      {
-        id: "fav-1",
-        notes: {
-          id: "note-4",
-          title: "Introduction to Calculus III",
-          description: "Multivariable integration and vector fields guide.",
-          file_type: "application/pdf",
-          semester: 3,
-          downloads_count: 320,
-          created_at: new Date().toISOString()
-        }
-      }
-    ]);
-  };
-
+  const [searchQuery, setSearchQuery] = useState("");
   // Load user data
   useEffect(() => {
     if (!isUserLoaded || !user) return;
@@ -158,11 +89,6 @@ export default function Dashboard() {
     async function loadDashboardData() {
       try {
         setIsLoading(true);
-
-        // Test if env is missing to trigger mock data fallback
-        if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("your-project-id")) {
-          throw new Error("Supabase placeholders detected, falling back to mock data.");
-        }
 
         // Fetch user profile
         const { data: profileData, error: profileError } = await supabase
@@ -195,9 +121,7 @@ export default function Dashboard() {
 
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        console.warn("Using mock data as Supabase keys are not set yet:", message);
-        setIsUsingMockData(true);
-        loadMockData();
+        console.warn("Error fetching dashboard data:", message);
       } finally {
         setIsLoading(false);
       }
@@ -236,7 +160,7 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="border-t border-zinc-800/50 pt-4 text-xs text-zinc-400 flex flex-col gap-3.5">
-              <Link href="/dashboard/my-notes" className="flex justify-between hover:text-indigo-400 transition-colors">
+              <Link href="/dashboard/my-uploads" className="flex justify-between hover:text-indigo-400 transition-colors">
                 <span>Total Contributions</span>
                 <span className="font-bold text-zinc-100">{notes.length} notes</span>
               </Link>
@@ -285,7 +209,7 @@ export default function Dashboard() {
           </div>
 
           <div className="grid sm:grid-cols-3 gap-4">
-            <Link href="/dashboard/my-notes">
+            <Link href="/dashboard/my-uploads">
               <Card className="bg-zinc-900/25 border-zinc-800/50 shadow-md hover:bg-zinc-900/40 transition-colors cursor-pointer">
                 <CardContent className="p-5 flex items-center gap-4.5">
                   <div className="bg-indigo-500/10 text-indigo-400 p-2.5 rounded-xl">
@@ -450,31 +374,9 @@ export default function Dashboard() {
                 <CardContent className="p-6">
                   {/* Timeline list */}
                   <div className="relative border-l border-zinc-800 pl-6 ml-3 flex flex-col gap-6.5 py-2">
-                    <div className="relative">
-                      <span className="absolute -left-[30px] top-0 h-4.5 w-4.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      </span>
-                      <h5 className="text-xs font-bold text-zinc-200">Note Approved</h5>
-                      <p className="text-[11px] text-zinc-500 mt-1">&quot;Compiler Design Handouts&quot; was approved by admins and pushed public.</p>
-                      <span className="text-[9px] text-zinc-600 font-semibold block mt-1">3 days ago</span>
-                    </div>
-
-                    <div className="relative">
-                      <span className="absolute -left-[30px] top-0 h-4.5 w-4.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center">
-                        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
-                      </span>
-                      <h5 className="text-xs font-bold text-zinc-200">Uploaded Midterm Reviews</h5>
-                      <p className="text-[11px] text-zinc-500 mt-1">You submitted &quot;DBMS Midterm Review Sheets&quot; for authorization verification.</p>
-                      <span className="text-[9px] text-zinc-600 font-semibold block mt-1">5 hours ago</span>
-                    </div>
-
-                    <div className="relative">
-                      <span className="absolute -left-[30px] top-0 h-4.5 w-4.5 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center">
-                        <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                      </span>
-                      <h5 className="text-xs font-bold text-zinc-200">Upload Rejected</h5>
-                      <p className="text-[11px] text-zinc-500 mt-1">&quot;Physics II Lab Manuals&quot; was rejected: file was blank or duplicate.</p>
-                      <span className="text-[9px] text-zinc-600 font-semibold block mt-1">12 days ago</span>
+                    <div className="flex flex-col items-center justify-center py-10 text-zinc-500 gap-3 ml-[-12px]">
+                      <History className="h-8 w-8 text-zinc-600 animate-spin" />
+                      <p className="text-sm">No activity recorded yet.</p>
                     </div>
                   </div>
                 </CardContent>

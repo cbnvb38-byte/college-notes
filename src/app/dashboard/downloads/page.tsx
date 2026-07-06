@@ -13,24 +13,7 @@ interface DownloadItem {
   downloadedAt: string;
 }
 
-const downloadedNotes: DownloadItem[] = [
-  {
-    id: "note-1",
-    title: "Compiler Design Handouts",
-    description: "Complete compiler construction lectures on lexing and parsing.",
-    semester: 5,
-    size: "4.5 MB",
-    downloadedAt: "3 days ago"
-  },
-  {
-    id: "note-4",
-    title: "Introduction to Calculus III",
-    description: "Multivariable integration and vector fields guide.",
-    semester: 3,
-    size: "3.2 MB",
-    downloadedAt: "1 week ago"
-  }
-];
+const downloadedNotes: DownloadItem[] = [];
 
 export default function DownloadsPage() {
   return (

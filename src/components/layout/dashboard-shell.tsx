@@ -52,7 +52,6 @@ export function DashboardShell({ children }: DashboardShellProps) {
     { name: "Upload Notes", href: "/dashboard/upload", icon: UploadCloud },
     { name: "My Uploads", href: "/dashboard/my-uploads", icon: FileUp },
     { name: "Browse Notes", href: "/dashboard/browse", icon: Search },
-    { name: "My Notes", href: "/dashboard/my-notes", icon: BookOpen },
     { name: "Bookmarks", href: "/dashboard/bookmarks", icon: Bookmark },
   ];
 

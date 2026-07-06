@@ -13,53 +13,7 @@ interface ActivityItem {
   color: string;
 }
 
-const activities: ActivityItem[] = [
-  {
-    id: "act-1",
-    type: "status",
-    title: "Note Approved",
-    detail: "Your upload 'Compiler Design Handouts' was verified and approved by administrators.",
-    time: "3 days ago",
-    icon: ShieldCheck,
-    color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
-  },
-  {
-    id: "act-2",
-    type: "upload",
-    title: "Submitted a Note",
-    detail: "You uploaded 'DBMS Midterm Review Sheets' for semester 4 review.",
-    time: "5 hours ago",
-    icon: FileText,
-    color: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20"
-  },
-  {
-    id: "act-3",
-    type: "bookmark",
-    title: "Added Bookmark",
-    detail: "You bookmarked 'Introduction to Calculus III' from the browse catalog.",
-    time: "6 hours ago",
-    icon: Bookmark,
-    color: "text-pink-400 bg-pink-500/10 border-pink-500/20"
-  },
-  {
-    id: "act-4",
-    type: "download",
-    title: "Downloaded Document",
-    detail: "You downloaded 'Compiler Design Handouts' as PDF to your local system.",
-    time: "12 hours ago",
-    icon: ArrowDownToLine,
-    color: "text-sky-400 bg-sky-500/10 border-sky-500/20"
-  },
-  {
-    id: "act-5",
-    type: "status",
-    title: "Upload Rejected",
-    detail: "Your submission 'Physics II Lab Manuals' was rejected due to blurry scanned content.",
-    time: "12 days ago",
-    icon: AlertCircle,
-    color: "text-red-400 bg-red-500/10 border-red-500/20"
-  }
-];
+const activities: ActivityItem[] = [];
 
 export default function RecentActivityPage() {
   return (
