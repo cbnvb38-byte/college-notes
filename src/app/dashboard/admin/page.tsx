@@ -1,19 +1,52 @@
+import { redirect } from "next/navigation";
+import { getAdminStats, getAdminNotes, getRecentAdminActivity, checkAdminAccess } from "@/app/actions/admin";
+import AdminDashboardClient from "@/app/dashboard/admin/admin-client";
+
 export const metadata = {
   title: "Admin Panel - College Notes",
   description: "Administrative dashboard for managing pending note verifications.",
 };
 
-export default function AdminPage() {
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight text-amber-500">Admin Panel</h1>
-        <p className="text-zinc-400">Manage user uploads and approve or reject documents.</p>
-      </div>
+export default async function AdminPage() {
+  // 1. Verify access (redirects to /dashboard if unauthorized)
+  const accessRes = await checkAdminAccess();
+  if (!accessRes.success || !("data" in accessRes) || !accessRes.data) {
+    redirect("/dashboard");
+  }
 
-      <div className="flex-1 bg-zinc-900/20 border border-amber-500/20 rounded-3xl p-8 flex items-center justify-center min-h-[400px]">
-        <p className="text-amber-500/50">Admin queue coming soon...</p>
+  const userRole = accessRes.data.role;
+
+  // 2. Fetch initial data in parallel
+  const [statsRes, notesRes, activityRes] = await Promise.all([
+    getAdminStats(),
+    getAdminNotes({ status: "pending_review", page: 1 }),
+    getRecentAdminActivity(10),
+  ]);
+
+  if (
+    !statsRes.success ||
+    !("data" in statsRes) ||
+    !notesRes.success ||
+    !("data" in notesRes) ||
+    !activityRes.success ||
+    !("data" in activityRes)
+  ) {
+    return (
+      <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-12 items-center justify-center min-h-[50vh]">
+        <div className="text-red-400 font-bold bg-red-500/10 p-6 rounded-2xl border border-red-500/20 text-center">
+          <h2 className="text-xl mb-2">Error Loading Dashboard</h2>
+          <p className="text-sm">Failed to load admin data from the server. Please try again later.</p>
+        </div>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <AdminDashboardClient
+      initialStats={statsRes.data as any}
+      initialNotes={notesRes.data as any}
+      initialActivity={activityRes.data as any}
+      userRole={userRole}
+    />
   );
 }

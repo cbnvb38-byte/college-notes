@@ -36,16 +36,15 @@ import { cn } from "@/lib/utils";
 
 interface DashboardShellProps {
   children: React.ReactNode;
+  userRole?: string;
 }
 
-export function DashboardShell({ children }: DashboardShellProps) {
+export function DashboardShell({ children, userRole = "student" }: DashboardShellProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const { user } = useUser();
 
-  // Determine user role from public metadata (fallback to student if undefined)
-  const role = user?.publicMetadata?.role as string || "student";
-  const isAdmin = role === "admin";
+  const isAdminOrModerator = userRole === "admin" || userRole === "moderator";
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -58,7 +57,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const bottomNavigation = [
     { name: "Profile", href: "/dashboard/profile", icon: User },
     { name: "Settings", href: "/dashboard/settings", icon: Settings },
-    ...(isAdmin ? [{ name: "Admin Panel", href: "/dashboard/admin", icon: ShieldAlert }] : []),
+    ...(isAdminOrModerator ? [{ name: "Admin Panel", href: "/dashboard/admin", icon: ShieldAlert }] : []),
   ];
 
   return (

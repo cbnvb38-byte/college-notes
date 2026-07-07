@@ -23,6 +23,7 @@ export default async function MyUploadsPage() {
     .from("notes")
     .select(`
       *,
+      rejection_reason,
       subjects (
         name,
         branches (

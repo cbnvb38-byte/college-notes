@@ -1,13 +1,28 @@
 "use client";
 
+import { useState, useEffect, useTransition } from "react";
 import { useUser } from "@clerk/nextjs";
-import { User, Mail, GraduationCap, Calendar, ShieldAlert } from "lucide-react";
+import { User, Mail, GraduationCap, Calendar, ShieldAlert, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useSupabase } from "@/hooks/useSupabase";
+import { updateProfileSettings } from "@/app/actions/profile";
+import { toast } from "sonner";
 
 export default function ProfilePage() {
   const { user, isLoaded } = useUser();
+  const supabase = useSupabase();
+  const [role, setRole] = useState("student");
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (user?.id) {
+      supabase.from("profiles").select("role").eq("id", user.id).single().then(({ data }) => {
+        if (data) setRole(data.role);
+      });
+    }
+  }, [user?.id, supabase]);
 
   if (!isLoaded) {
     return (
@@ -17,7 +32,16 @@ export default function ProfilePage() {
     );
   }
 
-  const role = user?.publicMetadata?.role as string || "student";
+  const handleSave = () => {
+    startTransition(async () => {
+      const result = await updateProfileSettings({});
+      if (result.success) {
+        toast.success("Profile settings updated successfully");
+      } else {
+        toast.error(result.error || "Failed to update profile settings");
+      }
+    });
+  };
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl mx-auto pb-12">
@@ -71,7 +95,7 @@ export default function ProfilePage() {
             <CardDescription className="text-xs text-zinc-500">Contact and college department parameters.</CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
-            <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-5">
+            <form action={handleSave} className="flex flex-col gap-5">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">First Name</label>
@@ -115,6 +139,7 @@ export default function ProfilePage() {
                   <div className="relative">
                     <GraduationCap className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
                     <select
+                      name="department"
                       className="w-full pl-9 bg-zinc-900/50 border border-zinc-800 text-xs rounded-xl h-10 px-3 text-zinc-300 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 outline-none cursor-pointer"
                       defaultValue="cs"
                     >
@@ -128,6 +153,7 @@ export default function ProfilePage() {
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Target Semester</label>
                   <select
+                    name="semester"
                     className="bg-zinc-900/50 border border-zinc-800 text-xs rounded-xl h-10 px-3 text-zinc-300 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 outline-none cursor-pointer"
                     defaultValue="5"
                   >
@@ -138,8 +164,14 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <Button className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs py-5.5 font-semibold mt-2 shadow-lg shadow-indigo-500/10">
-                Save Profile Changes
+              <Button disabled={isPending} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs py-5.5 font-semibold mt-2 shadow-lg shadow-indigo-500/10">
+                {isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                  </>
+                ) : (
+                  "Save Profile Changes"
+                )}
               </Button>
             </form>
           </CardContent>

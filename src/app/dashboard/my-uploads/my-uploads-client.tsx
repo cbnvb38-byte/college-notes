@@ -25,6 +25,7 @@ interface Note {
   title: string;
   semester: number;
   status: "draft" | "pending_review" | "approved" | "rejected" | "removed";
+  rejection_reason: string | null;
   created_at: string;
   downloads_count: number;
   view_count: number;
@@ -71,6 +72,8 @@ export default function MyUploadsClient({ initialNotes }: { initialNotes: Note[]
         return <span className="px-2.5 py-1 text-[10px] uppercase tracking-wider font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full">Pending Review</span>;
       case "rejected":
         return <span className="px-2.5 py-1 text-[10px] uppercase tracking-wider font-bold bg-red-500/10 text-red-400 border border-red-500/20 rounded-full">Rejected</span>;
+      case "removed":
+        return <span className="px-2.5 py-1 text-[10px] uppercase tracking-wider font-bold bg-zinc-700/30 text-zinc-400 border border-zinc-600/20 rounded-full">Removed</span>;
       default:
         return <span className="px-2.5 py-1 text-[10px] uppercase tracking-wider font-bold bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-full">{status}</span>;
     }
@@ -136,6 +139,21 @@ export default function MyUploadsClient({ initialNotes }: { initialNotes: Note[]
                         </p>
                       </div>
                     </div>
+
+                    {/* Rejection Reason (if rejected) */}
+                    {note.status === "rejected" && note.rejection_reason && (
+                      <div className="bg-red-500/5 border border-red-500/15 rounded-lg p-3 text-xs text-red-400 mt-2 flex flex-col gap-1">
+                        <span className="font-bold text-[10px] uppercase tracking-wider">Rejection Reason</span>
+                        <span className="font-medium">{note.rejection_reason}</span>
+                      </div>
+                    )}
+
+                    {/* View Action - Removed Notes */}
+                    {note.status === "removed" && (
+                      <div className="bg-zinc-800/30 border border-zinc-700/30 rounded-lg p-3 text-xs text-zinc-400 mt-2 flex flex-col gap-1">
+                        <span className="font-medium text-center">This note was removed by a moderator.</span>
+                      </div>
+                    )}
 
                     <div className="flex flex-wrap gap-2">
                       {getStatusBadge(note.status)}

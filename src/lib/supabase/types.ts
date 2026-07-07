@@ -116,6 +116,7 @@ export type Database = {
           college: string | null
           professor: string | null
           status: Database["public"]["Enums"]["note_status"]
+          rejection_reason: string | null
           downloads_count: number
           bookmarks_count: number
           view_count: number
@@ -136,6 +137,7 @@ export type Database = {
           college?: string | null
           professor?: string | null
           status?: Database["public"]["Enums"]["note_status"]
+          rejection_reason?: string | null
           downloads_count?: number
           bookmarks_count?: number
           view_count?: number
@@ -156,6 +158,7 @@ export type Database = {
           college?: string | null
           professor?: string | null
           status?: Database["public"]["Enums"]["note_status"]
+          rejection_reason?: string | null
           downloads_count?: number
           bookmarks_count?: number
           view_count?: number

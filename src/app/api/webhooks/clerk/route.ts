@@ -63,34 +63,54 @@ export async function POST(req: Request) {
 
     const name = [first_name, last_name].filter(Boolean).join(" ");
     
-    // Check user profiles count to decide if this is the first user
-    let role: "student" | "moderator" | "admin" = "student";
-    try {
-      const { count, error: countError } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true });
-
-      if (!countError && (count === 0 || count === null)) {
-        role = "admin";
-      }
-    } catch (e) {
-      console.warn("Failed to query profile count, defaulting to student: ", e);
-    }
-
-    const { error } = await supabase
+    // First, try to update an existing profile safely without modifying 'role'
+    const { data: updatedProfile, error: updateError } = await supabase
       .from("profiles")
-      .upsert({
-        id,
+      .update({
         email,
         name,
         avatar_url: image_url || null,
-        role,
         updated_at: new Date().toISOString(),
-      });
+      })
+      .eq("id", id)
+      .select();
 
-    if (error) {
-      console.error("Error syncing profile to Supabase:", error);
+    if (updateError) {
+      console.error("Error updating profile in Supabase:", updateError);
       return new Response("Error syncing profile", { status: 500 });
+    }
+
+    // If no row was updated, the user does not exist, so we INSERT
+    if (!updatedProfile || updatedProfile.length === 0) {
+      // Check user profiles count to decide if this is the first user
+      let role: "student" | "moderator" | "admin" = "student";
+      try {
+        const { count, error: countError } = await supabase
+          .from("profiles")
+          .select("*", { count: "exact", head: true });
+
+        if (!countError && (count === 0 || count === null)) {
+          role = "admin";
+        }
+      } catch (e) {
+        console.warn("Failed to query profile count, defaulting to student: ", e);
+      }
+
+      const { error: insertError } = await supabase
+        .from("profiles")
+        .insert({
+          id,
+          email,
+          name,
+          avatar_url: image_url || null,
+          role,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (insertError) {
+        console.error("Error inserting profile to Supabase:", insertError);
+        return new Response("Error creating profile", { status: 500 });
+      }
     }
   }
 

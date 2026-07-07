@@ -5,10 +5,15 @@ export const metadata = {
   description: "Student and Admin dashboard for College Notes.",
 };
 
-export default function DashboardLayout({
+import { ensureCurrentUserProfile } from "@/app/actions/profile";
+
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <DashboardShell>{children}</DashboardShell>;
+  const profileRes = await ensureCurrentUserProfile();
+  const userRole = profileRes.success && profileRes.data ? profileRes.data.role : "student";
+
+  return <DashboardShell userRole={userRole}>{children}</DashboardShell>;
 }
