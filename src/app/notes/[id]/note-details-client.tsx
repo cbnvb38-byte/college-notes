@@ -19,7 +19,7 @@ import {
   Bookmark,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { incrementViewCountAction, logDownloadAction } from "@/app/actions/notes";
 import { addBookmark, removeBookmark } from "@/app/actions/bookmarks";
 import { toast } from "sonner";
@@ -81,8 +81,8 @@ export default function NoteDetailsClient({
 }) {
   // Counters & Interactive States
   const [note, setNote] = useState<NoteDetails>(initialNote);
-  const [averageRating, setAverageRating] = useState<number>(initialAverageRating);
-  const [relatedNotes, setRelatedNotes] = useState<RelatedNote[]>(initialRelatedNotes);
+  const [averageRating] = useState<number>(initialAverageRating);
+  const [relatedNotes] = useState<RelatedNote[]>(initialRelatedNotes);
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState("");
@@ -119,7 +119,7 @@ export default function NoteDetailsClient({
       } else {
         toast.success(currentlyBookmarked ? "Bookmark removed" : "Bookmark added");
       }
-    } catch (err) {
+    } catch {
       toast.error("An error occurred while bookmarking.");
     } finally {
       setIsBookmarking(false);
@@ -181,9 +181,9 @@ export default function NoteDetailsClient({
         const errObj = "error" in res ? res.error : null;
         throw new Error(errObj?.message || "Failed to log download.");
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("[Download Error]:", err);
-      setDownloadError(err.message || "Unable to download note. Please try again later.");
+      setDownloadError(err instanceof Error ? err.message : "Unable to download note. Please try again later.");
     } finally {
       setIsDownloading(false);
     }
