@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 interface DashboardShellProps {
   children: React.ReactNode;
@@ -225,15 +226,7 @@ export function DashboardShell({ children, userRole = "student" }: DashboardShel
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            <Link href="/dashboard/notifications">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 rounded-full"
-              >
-                <Bell className="h-4.5 w-4.5" />
-              </Button>
-            </Link>
+            <NotificationBell />
 
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 outline-none cursor-pointer rounded-full p-0.5 hover:bg-zinc-800/50 transition-colors">

@@ -420,6 +420,7 @@ export async function fetchNoteDetailsAction(noteId: string) {
         file_url,
         file_size,
         status,
+        author_id,
         profiles (
           name
         ),
@@ -455,9 +456,11 @@ export async function fetchNoteDetailsAction(noteId: string) {
       .eq("note_id", noteId);
 
     let averageRating = 0;
+    let ratingCount = 0;
     if (ratingsData && ratingsData.length > 0) {
       const sum = ratingsData.reduce((acc, curr) => acc + curr.rating, 0);
-      averageRating = parseFloat((sum / ratingsData.length).toFixed(1));
+      ratingCount = ratingsData.length;
+      averageRating = parseFloat((sum / ratingCount).toFixed(1));
     }
 
     // 3. Fetch related notes (same subject OR same semester), excluding the current note
@@ -495,6 +498,7 @@ export async function fetchNoteDetailsAction(noteId: string) {
       data: {
         note,
         averageRating,
+        ratingCount,
         relatedNotes: relatedNotes || []
       }
     };

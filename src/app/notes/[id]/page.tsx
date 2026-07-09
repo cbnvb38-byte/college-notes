@@ -58,6 +58,12 @@ export default async function NoteDetailsPage({ params }: PageProps) {
   const bookmarkRes = await getBookmarkState(id);
   const initialIsBookmarked = bookmarkRes.success && "data" in bookmarkRes ? bookmarkRes.data : false;
 
+  const { getCurrentUserRating } = await import("@/app/actions/ratings");
+  const ratingRes = await getCurrentUserRating(id);
+  const initialUserRating = ratingRes.success && "data" in ratingRes && typeof ratingRes.data === "number" 
+    ? ratingRes.data 
+    : 0;
+
   return (
     <div className="relative min-h-screen bg-zinc-950 text-zinc-50 overflow-hidden flex flex-col font-sans">
       {/* Decorative background blur */}
@@ -71,8 +77,10 @@ export default async function NoteDetailsPage({ params }: PageProps) {
         <NoteDetailsClient
           initialNote={note}
           initialAverageRating={averageRating}
+          initialRatingCount={res.data.ratingCount}
           initialRelatedNotes={relatedNotes}
           initialIsBookmarked={initialIsBookmarked as boolean}
+          initialUserRating={initialUserRating}
         />
       </main>
       <Footer />

@@ -203,12 +203,17 @@ export async function approveNote(noteId: string) {
     if (updateError) throw updateError;
 
     // 3. Create notification for the uploader
-    await supabase.from("notifications").insert({
+    const { error: notifyError } = await supabase.from("notifications").insert({
       user_id: note.author_id,
       title: "Note Approved",
       message: `Your note "${note.title}" has been approved and is now publicly available.`,
       type: "note_approved",
     });
+
+    if (notifyError) {
+      console.error("[approveNote] Notification insert error:", notifyError);
+      throw notifyError;
+    }
 
     // 4. Log admin action
     const ip = await getClientIp();
@@ -275,12 +280,17 @@ export async function rejectNote(noteId: string, reason: string) {
     if (updateError) throw updateError;
 
     // 3. Notify the uploader
-    await supabase.from("notifications").insert({
+    const { error: notifyError } = await supabase.from("notifications").insert({
       user_id: note.author_id,
       title: "Note Rejected",
       message: `Your note "${note.title}" has been rejected. Reason: ${reason.trim()}`,
       type: "note_rejected",
     });
+
+    if (notifyError) {
+      console.error("[rejectNote] Notification insert error:", notifyError);
+      throw notifyError;
+    }
 
     // 4. Log admin action
     const ip = await getClientIp();
@@ -332,12 +342,17 @@ export async function removeNote(noteId: string) {
     if (updateError) throw updateError;
 
     // Notify uploader
-    await supabase.from("notifications").insert({
+    const { error: notifyError } = await supabase.from("notifications").insert({
       user_id: note.author_id,
       title: "Note Removed",
       message: `Your note "${note.title}" has been removed by a moderator.`,
       type: "report_action",
     });
+
+    if (notifyError) {
+      console.error("[removeNote] Notification insert error:", notifyError);
+      throw notifyError;
+    }
 
     // Log
     const ip = await getClientIp();
