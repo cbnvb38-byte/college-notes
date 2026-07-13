@@ -258,7 +258,7 @@ export interface BrowseNotesFilters {
   branchId?: string;
   semester?: number;
   subjectId?: string;
-  sortBy?: "newest" | "downloads" | "views";
+  sortBy?: "newest" | "downloads" | "views" | "highest_rated" | "most_reviewed";
   page?: number;
   limit?: number;
 }
@@ -311,6 +311,9 @@ export async function browseNotesAction(filters: BrowseNotesFilters) {
         downloads_count,
         bookmarks_count,
         view_count,
+        average_rating,
+        total_ratings,
+        total_reviews,
         created_at,
         file_url,
         profiles (
@@ -355,33 +358,44 @@ export async function browseNotesAction(filters: BrowseNotesFilters) {
       query = query.eq("subject_id", subjectId);
     }
 
-    // Sorting
+    // Sorting & Pagination Strategy
     if (sortBy === "newest") {
       query = query.order("created_at", { ascending: false });
     } else if (sortBy === "downloads") {
       query = query.order("downloads_count", { ascending: false });
     } else if (sortBy === "views") {
       query = query.order("view_count", { ascending: false });
+    } else if (sortBy === "highest_rated") {
+      query = query.order("average_rating", { ascending: false }).order("total_ratings", { ascending: false });
+    } else if (sortBy === "most_reviewed") {
+      query = query.order("total_reviews", { ascending: false });
     }
 
-    // Pagination bounds
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
-    const { data: notes, count, error: notesError } = await query.range(from, to);
-
+    const { data: pagedNotes, count, error: notesError } = await query.range(from, to);
     if (notesError) {
       console.error("[Database Operations Failure - browseNotesAction - notes query]:", notesError);
       throw notesError;
     }
+    
+    let totalCount = count || 0;
+    
+    // Ensure safe defaults
+    let notes = (pagedNotes || []).map((n: any) => ({
+      ...n,
+      average_rating: n.average_rating || 0,
+      total_ratings: n.total_ratings || 0,
+      total_reviews: n.total_reviews || 0,
+    }));
 
-    const totalCount = count || 0;
     const totalPages = Math.ceil(totalCount / limit);
 
     return {
       success: true,
       data: {
-        notes: notes || [],
+        notes,
         totalCount,
         page,
         totalPages,
@@ -421,6 +435,9 @@ export async function fetchNoteDetailsAction(noteId: string) {
         file_size,
         status,
         author_id,
+        average_rating,
+        total_ratings,
+        total_reviews,
         profiles (
           name
         ),
@@ -449,19 +466,10 @@ export async function fetchNoteDetailsAction(noteId: string) {
       throw new AppError("Note not found or could not be accessed.", 404, "NOT_FOUND");
     }
 
-    // 2. Fetch rating details for this note
-    const { data: ratingsData, error: ratingsError } = await supabase
-      .from("ratings")
-      .select("rating")
-      .eq("note_id", noteId);
-
-    let averageRating = 0;
-    let ratingCount = 0;
-    if (ratingsData && ratingsData.length > 0) {
-      const sum = ratingsData.reduce((acc, curr) => acc + curr.rating, 0);
-      ratingCount = ratingsData.length;
-      averageRating = parseFloat((sum / ratingCount).toFixed(1));
-    }
+    // 2. Use native aggregated ratings
+    const averageRating = note.average_rating || 0;
+    const ratingCount = note.total_ratings || 0;
+    const totalReviews = note.total_reviews || 0;
 
     // 3. Fetch related notes (same subject OR same semester), excluding the current note
     const subjectId = note.subjects.id;
@@ -499,6 +507,7 @@ export async function fetchNoteDetailsAction(noteId: string) {
         note,
         averageRating,
         ratingCount,
+        totalReviews,
         relatedNotes: relatedNotes || []
       }
     };

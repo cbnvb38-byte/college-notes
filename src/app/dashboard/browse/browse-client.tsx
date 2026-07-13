@@ -51,6 +51,9 @@ interface NoteRow {
   downloads_count: number;
   bookmarks_count: number;
   view_count: number;
+  average_rating: number;
+  total_ratings: number;
+  total_reviews: number;
   created_at: string;
   file_url: string;
   profiles: {
@@ -82,7 +85,7 @@ export default function BrowseNotesClient({
   const [selectedBranch, setSelectedBranch] = useState("all");
   const [selectedSemester, setSelectedSemester] = useState("0"); // "0" representing "all"
   const [selectedSubject, setSelectedSubject] = useState("all");
-  const [sortBy, setSortBy] = useState<"newest" | "downloads" | "views">("newest");
+  const [sortBy, setSortBy] = useState<"newest" | "downloads" | "views" | "highest_rated" | "most_reviewed">("newest");
 
   // Dynamic Subjects List (based on branch/semester selection)
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -242,7 +245,7 @@ export default function BrowseNotesClient({
   }, [selectedBranch, selectedSemester, supabase]);
 
   // Main Notes Fetcher
-  const fetchNotes = async (search: string, branch: string, sem: string, sub: string, sort: "newest" | "downloads" | "views", currentPage: number) => {
+  const fetchNotes = async (search: string, branch: string, sem: string, sub: string, sort: "newest" | "downloads" | "views" | "highest_rated" | "most_reviewed", currentPage: number) => {
     try {
       setIsLoadingNotes(true);
       setErrorMsg("");
@@ -312,7 +315,7 @@ export default function BrowseNotesClient({
   };
 
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSortBy(e.target.value as "newest" | "downloads" | "views");
+    setSortBy(e.target.value as "newest" | "downloads" | "views" | "highest_rated" | "most_reviewed");
     setPage(1);
   };
 
@@ -373,6 +376,8 @@ export default function BrowseNotesClient({
               <option value="newest">Sort by: Newest Uploads</option>
               <option value="downloads">Sort by: Most Downloaded</option>
               <option value="views">Sort by: Most Viewed</option>
+              <option value="highest_rated">Sort by: Highest Rated</option>
+              <option value="most_reviewed">Sort by: Most Reviewed</option>
             </select>
           </div>
         </div>
@@ -525,6 +530,24 @@ export default function BrowseNotesClient({
                     <h4 className="font-bold text-zinc-100 text-base leading-snug line-clamp-1 group-hover:text-indigo-400 transition-colors duration-200">
                       {note.title}
                     </h4>
+
+                    {note.average_rating > 0 ? (
+                      <div className="flex items-center gap-1.5 mt-[-4px]">
+                        <div className="flex items-center gap-0.5 text-yellow-500">
+                          {[...Array(5)].map((_, i) => (
+                            <svg key={i} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-3.5 h-3.5 ${i < Math.round(note.average_rating) ? 'text-yellow-500' : 'text-zinc-700'}`}>
+                              <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
+                            </svg>
+                          ))}
+                        </div>
+                        <span className="text-xs font-bold text-zinc-300">{note.average_rating.toFixed(1)}</span>
+                        <span className="text-xs text-zinc-500 font-medium">({note.total_ratings})</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 mt-[-4px]">
+                        <span className="text-[11px] font-medium text-zinc-500 italic">No ratings yet</span>
+                      </div>
+                    )}
 
                     {note.description && (
                       <p className="text-zinc-500 text-xs leading-relaxed line-clamp-2">

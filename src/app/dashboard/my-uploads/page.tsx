@@ -38,6 +38,12 @@ export default async function MyUploadsPage() {
     console.error("[Fetch My Uploads Error]:", error);
   }
 
+  const processedNotes = (notes || []).map((n: any) => {
+    return {
+      ...n,
+    };
+  });
+
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-12">
       <div className="flex flex-col gap-2">
@@ -50,7 +56,7 @@ export default async function MyUploadsPage() {
         </p>
       </div>
 
-      <MyUploadsClient initialNotes={notes || []} />
+      <MyUploadsClient initialNotes={processedNotes} />
     </div>
   );
 }

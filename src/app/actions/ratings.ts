@@ -5,34 +5,47 @@ import { auth } from "@clerk/nextjs/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { AppError, handleError } from "@/lib/errors";
 
-/**
- * Helper to fetch the current average and count for a note.
- */
-async function getRatingSummary(noteId: string) {
+export async function getRatingSummary(noteId: string) {
   const supabase = createServiceRoleSupabaseClient();
-  const { data: ratingsData, error } = await supabase
+  
+  const { data: ratingsData, error: distError } = await supabase
     .from("ratings")
-    .select("rating")
-    .eq("note_id", noteId);
+    .select("rating, review_text")
+    .eq("note_id", noteId)
+    .eq("status", "visible");
 
-  if (error) {
-    throw error;
+  if (distError) {
+    throw distError;
   }
 
-  let averageRating = 0;
+  const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   let ratingCount = 0;
-  if (ratingsData && ratingsData.length > 0) {
-    const sum = ratingsData.reduce((acc, curr) => acc + curr.rating, 0);
-    ratingCount = ratingsData.length;
-    averageRating = parseFloat((sum / ratingCount).toFixed(1));
-  }
+  let totalScore = 0;
+  let totalReviews = 0;
 
-  return { averageRating, ratingCount };
+  if (ratingsData) {
+    ratingCount = ratingsData.length;
+    ratingsData.forEach(r => {
+      if (r.rating >= 1 && r.rating <= 5) {
+        distribution[r.rating as 1|2|3|4|5]++;
+        totalScore += r.rating;
+      }
+      if (r.review_text && r.review_text.trim() !== "") {
+        totalReviews++;
+      }
+    });
+  }
+  
+  const averageRating = ratingCount > 0 ? (totalScore / ratingCount) : 0;
+
+  return { 
+    averageRating, 
+    ratingCount,
+    totalReviews,
+    distribution
+  };
 }
 
-/**
- * Fetches the current user's rating for a specific note.
- */
 export async function getCurrentUserRating(noteId: string) {
   try {
     const { userId } = await auth();
@@ -47,29 +60,97 @@ export async function getCurrentUserRating(noteId: string) {
     const supabase = createServiceRoleSupabaseClient();
     const { data, error } = await supabase
       .from("ratings")
-      .select("rating")
+      .select("rating, review_text, review_title")
       .eq("user_id", userId)
       .eq("note_id", noteId)
       .single();
 
     if (error) {
-      if (error.code === "PGRST116") { // PostgREST error for no rows found
+      if (error.code === "PGRST116") {
         return { success: true, data: null };
       }
       console.error("[getCurrentUserRating] Error:", error);
       throw error;
     }
 
-    return { success: true, data: data.rating };
+    return { 
+      success: true, 
+      data
+    };
   } catch (error) {
     return handleError(error);
   }
 }
 
-/**
- * Submits or updates a rating for a specific note.
- */
-export async function submitRating(noteId: string, value: number) {
+export async function toggleHelpfulVote(reviewId: string) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      throw new AppError("You must be logged in to vote", 401, "UNAUTHORIZED");
+    }
+
+    if (!reviewId) {
+      throw new AppError("Review ID is required", 400, "INVALID_INPUT");
+    }
+
+    const supabase = createServiceRoleSupabaseClient();
+    
+    // Check if review exists and user is not the author
+    const { data: review, error: reviewError } = await supabase
+      .from("ratings")
+      .select("user_id, note_id")
+      .eq("id", reviewId)
+      .single();
+      
+    if (reviewError || !review) {
+      console.error("[toggleHelpfulVote] Review not found:", reviewError);
+      throw new AppError("Review not found", 404, "NOT_FOUND");
+    }
+    
+    if (review.user_id === userId) {
+      throw new AppError("You cannot vote on your own review", 403, "FORBIDDEN");
+    }
+
+    console.log("[toggleHelpfulVote] User:", userId, "Review:", reviewId);
+
+    // Check if vote exists
+    const { data: existingVote } = await supabase
+      .from("review_helpful_votes")
+      .select("id")
+      .eq("review_id", reviewId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (existingVote) {
+      // Remove vote
+      const { error: deleteError } = await supabase
+        .from("review_helpful_votes")
+        .delete()
+        .eq("id", existingVote.id);
+      
+      if (deleteError) {
+        console.error("[toggleHelpfulVote] Delete error:", { code: deleteError.code, message: deleteError.message, details: deleteError.details, hint: deleteError.hint });
+        throw deleteError;
+      }
+      return { success: true, isHelpful: false };
+    } else {
+      // Add vote
+      const { error: insertError } = await supabase
+        .from("review_helpful_votes")
+        .insert({ review_id: reviewId, user_id: userId });
+        
+      if (insertError) {
+        console.error("[toggleHelpfulVote] Insert error:", { code: insertError.code, message: insertError.message, details: insertError.details, hint: insertError.hint });
+        throw insertError;
+      }
+      return { success: true, isHelpful: true };
+    }
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function submitRating(noteId: string, value: number, reviewTitle: string | null = null, reviewText: string | null = null) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -84,17 +165,12 @@ export async function submitRating(noteId: string, value: number) {
       throw new AppError("Rating must be an integer between 1 and 5", 400, "INVALID_INPUT");
     }
 
-    // Verify note exists, is approved, and user is not the author
     const serviceSupabase = createServiceRoleSupabaseClient();
     const { data: note, error: noteError } = await serviceSupabase
       .from("notes")
       .select("status, author_id")
       .eq("id", noteId)
       .single();
-
-    console.log("[submitRating DIAGNOSTIC] userId:", userId);
-    console.log("[submitRating DIAGNOSTIC] noteId:", noteId, "value:", value);
-    console.log("[submitRating DIAGNOSTIC] note author_id:", note?.author_id, "status:", note?.status);
 
     if (noteError || !note) {
       throw new AppError("Note not found", 404, "NOT_FOUND");
@@ -108,7 +184,6 @@ export async function submitRating(noteId: string, value: number) {
       throw new AppError("You cannot rate your own note", 403, "FORBIDDEN");
     }
 
-    // Check if rating exists (using service role since Clerk JWT does not integrate with Supabase RLS)
     const supabaseClient = createServiceRoleSupabaseClient();
     const { data: existingRating, error: fetchError } = await supabaseClient
       .from("ratings")
@@ -118,59 +193,43 @@ export async function submitRating(noteId: string, value: number) {
       .single();
 
     if (fetchError && fetchError.code !== "PGRST116") {
-      console.error("[submitRating] Error checking existing:", fetchError);
       throw fetchError;
     }
 
     if (existingRating) {
-      // Update existing
       const { error: updateError } = await supabaseClient
         .from("ratings")
         .update({
           rating: value,
+          review_text: reviewText,
+          review_title: reviewTitle,
           updated_at: new Date().toISOString(),
         })
         .eq("id", existingRating.id);
 
-      if (updateError) {
-        console.error("[submitRating DIAGNOSTIC] Update Error:", JSON.stringify(updateError));
-        throw updateError;
-      }
-      console.log("[submitRating DIAGNOSTIC] Updated existing rating row.");
+      if (updateError) throw updateError;
     } else {
-      // Insert new
       const { error: insertError } = await supabaseClient
         .from("ratings")
         .insert({
           user_id: userId,
           note_id: noteId,
           rating: value,
+          review_text: reviewText,
+          review_title: reviewTitle
         });
 
-      if (insertError) {
-        console.error("[submitRating DIAGNOSTIC] Insert Error:", JSON.stringify(insertError));
-        throw insertError;
-      }
-      console.log("[submitRating DIAGNOSTIC] Inserted new rating row.");
+      if (insertError) throw insertError;
     }
 
-    // Fetch and return updated summary
     const summary = await getRatingSummary(noteId);
-
     revalidatePath(`/notes/${noteId}`);
-
-    return {
-      success: true,
-      data: summary,
-    };
+    return { success: true, data: summary };
   } catch (error) {
     return handleError(error);
   }
 }
 
-/**
- * Removes the current user's rating for a specific note.
- */
 export async function removeRating(noteId: string) {
   try {
     const { userId } = await auth();
@@ -189,20 +248,198 @@ export async function removeRating(noteId: string) {
       .eq("user_id", userId)
       .eq("note_id", noteId);
 
-    if (error) {
-      console.error("[removeRating] Error:", error);
-      throw error;
+    if (error) throw error;
+
+    const summary = await getRatingSummary(noteId);
+    revalidatePath(`/notes/${noteId}`);
+    return { success: true, data: summary };
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export interface ReviewFilterOptions {
+  star?: number;
+  writtenOnly?: boolean;
+  verifiedOnly?: boolean;
+  sortBy?: "helpful" | "recent" | "high" | "low";
+  page?: number;
+  limit?: number;
+}
+
+export async function getReviewsForNote(noteId: string, options: ReviewFilterOptions = {}) {
+  try {
+    const { userId } = await auth();
+
+    const supabase = createServiceRoleSupabaseClient();
+    
+    let query = supabase
+      .from("ratings")
+      .select(`
+        id,
+        user_id,
+        rating,
+        review_text,
+        review_title,
+        status,
+        helpful_count,
+        created_at,
+        updated_at,
+        profiles (
+          name,
+          avatar_url
+        )
+      `, { count: "exact" })
+      .eq("note_id", noteId)
+      .eq("status", "visible");
+
+    if (options.star) {
+      query = query.eq("rating", options.star);
+    }
+    
+    if (options.writtenOnly) {
+      query = query.not("review_text", "is", null).neq("review_text", "");
+    }
+    
+    const sort = options.sortBy || "helpful";
+    if (sort === "helpful") {
+      query = query.order("helpful_count", { ascending: false }).order("created_at", { ascending: false });
+    } else if (sort === "recent") {
+      query = query.order("created_at", { ascending: false });
+    } else if (sort === "high") {
+      query = query.order("rating", { ascending: false }).order("created_at", { ascending: false });
+    } else if (sort === "low") {
+      query = query.order("rating", { ascending: true }).order("created_at", { ascending: false });
     }
 
-    // Fetch and return updated summary
-    const summary = await getRatingSummary(noteId);
+    const page = options.page || 1;
+    const limit = options.limit || 10;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
 
-    revalidatePath(`/notes/${noteId}`);
+    const { data: reviews, count, error } = await query.range(from, to);
 
-    return {
-      success: true,
-      data: summary,
+    if (error) throw error;
+
+    // Fetch dynamic data: is_verified_downloader and isHelpfulByMe
+    let downloadsSet = new Set<string>();
+    let helpfulSet = new Set<string>();
+
+    if (reviews && reviews.length > 0) {
+      const reviewUserIds = Array.from(new Set(reviews.map(r => r.user_id)));
+      
+      const { data: downloadsData } = await supabase
+        .from("downloads")
+        .select("user_id")
+        .in("user_id", reviewUserIds)
+        .eq("note_id", noteId);
+        
+      if (downloadsData) {
+        downloadsData.forEach(d => {
+          if (d.user_id) downloadsSet.add(d.user_id);
+        });
+      }
+
+      if (userId) {
+        const reviewIds = reviews.map(r => r.id);
+        const { data: helpfulData } = await supabase
+          .from("review_helpful_votes")
+          .select("review_id")
+          .eq("user_id", userId)
+          .in("review_id", reviewIds);
+          
+        if (helpfulData) {
+          helpfulData.forEach(h => helpfulSet.add(h.review_id));
+        }
+      }
+    }
+
+    const formattedReviews = reviews ? reviews.map(r => ({
+      ...r,
+      is_verified_downloader: downloadsSet.has(r.user_id),
+      isHelpfulByMe: helpfulSet.has(r.id)
+    })) : [];
+
+    let finalReviews = formattedReviews;
+    if (options.verifiedOnly) {
+      finalReviews = finalReviews.filter(r => r.is_verified_downloader);
+    }
+
+    return { 
+      success: true, 
+      data: {
+        reviews: finalReviews,
+        totalCount: count || 0,
+        totalPages: Math.ceil((count || 0) / limit)
+      }
     };
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function updateReviewStatus(reviewId: string, status: "visible" | "hidden" | "removed") {
+  try {
+    const supabase = createServiceRoleSupabaseClient();
+    const { error } = await supabase
+      .from("ratings")
+      .update({ status })
+      .eq("id", reviewId);
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function reportReview(reviewId: string, reason: string, details?: string) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      throw new AppError("You must be logged in to report a review", 401, "UNAUTHORIZED");
+    }
+
+    if (!reviewId || !reason) {
+      throw new AppError("Review ID and reason are required", 400, "INVALID_INPUT");
+    }
+
+    const supabase = createServiceRoleSupabaseClient();
+
+    const { data: review, error: reviewError } = await supabase
+      .from("ratings")
+      .select("user_id")
+      .eq("id", reviewId)
+      .single();
+
+    if (reviewError || !review) {
+      console.error("[reportReview] Review not found:", reviewError);
+      throw new AppError("Review not found", 404, "NOT_FOUND");
+    }
+
+    if (review.user_id === userId) {
+      throw new AppError("You cannot report your own review", 403, "FORBIDDEN");
+    }
+
+    console.log("[reportReview] Payload:", { reporter_id: userId, review_id: reviewId, reason, details: details || null });
+
+    const { error: insertError } = await supabase
+      .from("review_reports")
+      .insert({
+        reporter_id: userId,
+        review_id: reviewId,
+        reason,
+        details: details || null
+      });
+
+    if (insertError) {
+      console.error("[reportReview] Supabase Error:", { code: insertError.code, message: insertError.message, details: insertError.details, hint: insertError.hint });
+      if (insertError.code === "23505") { // unique violation
+        throw new AppError("You have already reported this review", 400, "DUPLICATE_REPORT");
+      }
+      throw insertError;
+    }
+
+    return { success: true };
   } catch (error) {
     return handleError(error);
   }

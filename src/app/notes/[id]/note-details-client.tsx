@@ -25,6 +25,7 @@ import { addBookmark, removeBookmark } from "@/app/actions/bookmarks";
 import { toast } from "sonner";
 import { useAuth } from "@clerk/nextjs";
 import { submitRating, removeRating } from "@/app/actions/ratings";
+import { ReviewsSection } from "./reviews-section";
 
 interface RelatedNote {
   id: string;
@@ -78,13 +79,21 @@ export default function NoteDetailsClient({
   initialRelatedNotes,
   initialIsBookmarked,
   initialUserRating,
+  initialTotalReviews,
+  initialDistribution,
+  initialUserReviewTitle,
+  initialUserReviewText,
 }: {
   initialNote: NoteDetails;
   initialAverageRating: number;
   initialRatingCount: number;
+  initialTotalReviews: number;
+  initialDistribution: Record<number, number>;
   initialRelatedNotes: RelatedNote[];
   initialIsBookmarked: boolean;
   initialUserRating: number;
+  initialUserReviewTitle: string;
+  initialUserReviewText: string;
 }) {
   const { userId } = useAuth();
   const isAuthor = userId === initialNote.author_id;
@@ -93,7 +102,12 @@ export default function NoteDetailsClient({
   const [note, setNote] = useState<NoteDetails>(initialNote);
   const [averageRating, setAverageRating] = useState<number>(initialAverageRating);
   const [ratingCount, setRatingCount] = useState<number>(initialRatingCount);
+  const [totalReviews, setTotalReviews] = useState<number>(initialTotalReviews);
+  const [distribution, setDistribution] = useState<Record<number, number>>(initialDistribution);
+  
   const [userRating, setUserRating] = useState<number>(initialUserRating);
+  const [userReviewTitle, setUserReviewTitle] = useState<string>(initialUserReviewTitle);
+  const [userReviewText, setUserReviewText] = useState<string>(initialUserReviewText);
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [isRating, setIsRating] = useState(false);
   const [relatedNotes] = useState<RelatedNote[]>(initialRelatedNotes);
@@ -140,60 +154,11 @@ export default function NoteDetailsClient({
     }
   };
 
-  const handleRate = async (value: number) => {
-    console.log("[Client DIAGNOSTIC] clicked rating value:", value);
-    console.log("[Client DIAGNOSTIC] note ID:", note.id);
-    console.log("[Client DIAGNOSTIC] isAuthor:", isAuthor, "isRating:", isRating, "userId:", userId);
-    
-    if (isAuthor || isRating) {
-      console.log("[Client DIAGNOSTIC] Click ignored. Author or already rating.");
-      return;
-    }
-    
-    setIsRating(true);
-    const previousRating = userRating;
-    setUserRating(value); // Optimistic update
-    
-    try {
-      console.log("[Client DIAGNOSTIC] Calling submitRating action...");
-      const res = await submitRating(note.id, value);
-      console.log("[Client DIAGNOSTIC] Action response:", res);
-      
-      if (res.success && "data" in res && res.data) {
-        setAverageRating(res.data.averageRating);
-        setRatingCount(res.data.ratingCount);
-        toast.success(previousRating === 0 ? "Rating saved" : "Rating updated");
-      } else {
-        setUserRating(previousRating); // Revert on failure
-        toast.error("Failed to submit rating");
-      }
-    } catch (error) {
-      setUserRating(previousRating); // Revert on failure
-      toast.error("An error occurred");
-    } finally {
-      setIsRating(false);
-    }
-  };
-
-  const handleRemoveRating = async () => {
-    if (isAuthor || isRating) return;
-
-    setIsRating(true);
-    try {
-      const res = await removeRating(note.id);
-      if (res.success && "data" in res && res.data) {
-        setUserRating(0);
-        setAverageRating(res.data.averageRating);
-        setRatingCount(res.data.ratingCount);
-        toast.success("Rating removed");
-      } else {
-        toast.error("Failed to remove rating");
-      }
-    } catch (error) {
-      toast.error("An error occurred");
-    } finally {
-      setIsRating(false);
-    }
+  const handleRatingUpdate = (avg: number, count: number, totalRevs: number, dist: Record<number, number>) => {
+    setAverageRating(avg);
+    setRatingCount(count);
+    setTotalReviews(totalRevs);
+    setDistribution(dist);
   };
 
   // Increment view count exactly once per session
@@ -439,71 +404,8 @@ export default function NoteDetailsClient({
                   </span>
                 </div>
 
-                {/* Interactive Rating */}
-                <div className="flex flex-col gap-2 py-4 border-b border-zinc-800/40">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-500 font-semibold flex items-center gap-1.5">
-                      <Star className="h-4 w-4 shrink-0 text-zinc-600" /> Rate Note
-                    </span>
-                    <span className="text-zinc-200 font-bold flex items-center gap-1 text-sm">
-                      {averageRating > 0 ? (
-                        <>
-                          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                          {averageRating} <span className="text-zinc-500 font-normal ml-1">({ratingCount})</span>
-                        </>
-                      ) : (
-                        <span className="text-zinc-500 font-normal">No ratings</span>
-                      )}
-                    </span>
-                  </div>
 
-                  <div className="flex flex-col items-center gap-2 mt-2 bg-zinc-950/40 p-4 rounded-xl border border-zinc-800/50">
-                    <div className="flex items-center gap-2">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <button
-                          key={star}
-                          disabled={isAuthor || isRating || !userId}
-                          onMouseEnter={() => !isAuthor && userId && setHoverRating(star)}
-                          onMouseLeave={() => !isAuthor && userId && setHoverRating(0)}
-                          onClick={() => handleRate(star)}
-                          className={`focus:outline-none transition-all duration-200 ${
-                            !isAuthor && !isRating && userId ? 'hover:scale-110 active:scale-95' : 'cursor-not-allowed opacity-50'
-                          }`}
-                        >
-                          <Star 
-                            className={`h-7 w-7 transition-colors duration-200 ${
-                              (hoverRating || userRating) >= star 
-                                ? "text-yellow-500 fill-yellow-500 drop-shadow-[0_0_8px_rgba(234,179,8,0.3)]" 
-                                : "text-zinc-700 fill-zinc-800/50"
-                            } ${isRating ? "animate-pulse" : ""}`}
-                          />
-                        </button>
-                      ))}
-                    </div>
 
-                    <div className="flex items-center justify-between w-full mt-1">
-                      <span className="text-[10px] text-zinc-500 font-medium">
-                        {isAuthor 
-                          ? "You cannot rate your own note" 
-                          : !userId 
-                            ? "Sign in to rate" 
-                            : userRating > 0 
-                              ? `You rated ${userRating} star${userRating > 1 ? 's' : ''}` 
-                              : "Click to rate"
-                        }
-                      </span>
-                      {userRating > 0 && !isAuthor && (
-                        <button 
-                          onClick={handleRemoveRating}
-                          disabled={isRating}
-                          className="text-[10px] text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
               </div>
 
               {/* Statistics Grid */}
@@ -563,6 +465,20 @@ export default function NoteDetailsClient({
           </Card>
         </div>
       </div>
+
+      {/* Reviews Section */}
+      <ReviewsSection 
+        noteId={note.id}
+        isAuthor={isAuthor}
+        averageRating={averageRating}
+        ratingCount={ratingCount}
+        totalReviews={totalReviews}
+        distribution={distribution}
+        initialUserRating={userRating}
+        initialUserReviewTitle={userReviewTitle}
+        initialUserReviewText={userReviewText}
+        onRatingUpdate={handleRatingUpdate}
+      />
 
       {/* Related Notes Section */}
       <div className="flex flex-col gap-5 pt-8 border-t border-zinc-800/40">

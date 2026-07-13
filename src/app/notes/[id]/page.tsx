@@ -60,9 +60,20 @@ export default async function NoteDetailsPage({ params }: PageProps) {
 
   const { getCurrentUserRating } = await import("@/app/actions/ratings");
   const ratingRes = await getCurrentUserRating(id);
-  const initialUserRating = ratingRes.success && "data" in ratingRes && typeof ratingRes.data === "number" 
-    ? ratingRes.data 
+  const initialUserRating = ratingRes.success && "data" in ratingRes && ratingRes.data && typeof ratingRes.data === "object"
+    ? (ratingRes.data as any).rating
     : 0;
+    
+  const initialUserReviewTitle = ratingRes.success && "data" in ratingRes && ratingRes.data && typeof ratingRes.data === "object"
+    ? (ratingRes.data as any).review_title ?? ""
+    : "";
+    
+  const initialUserReviewText = ratingRes.success && "data" in ratingRes && ratingRes.data && typeof ratingRes.data === "object"
+    ? (ratingRes.data as any).review_text ?? ""
+    : "";
+
+  const { getRatingSummary } = await import("@/app/actions/ratings");
+  const summaryRes = await getRatingSummary(id);
 
   return (
     <div className="relative min-h-screen bg-zinc-950 text-zinc-50 overflow-hidden flex flex-col font-sans">
@@ -76,11 +87,15 @@ export default async function NoteDetailsPage({ params }: PageProps) {
       <main className="flex-grow z-10 pt-24 pb-16 px-6 max-w-7xl mx-auto w-full">
         <NoteDetailsClient
           initialNote={note}
-          initialAverageRating={averageRating}
-          initialRatingCount={res.data.ratingCount}
+          initialAverageRating={summaryRes.averageRating}
+          initialRatingCount={summaryRes.ratingCount}
+          initialTotalReviews={summaryRes.totalReviews}
+          initialDistribution={summaryRes.distribution}
           initialRelatedNotes={relatedNotes}
           initialIsBookmarked={initialIsBookmarked as boolean}
           initialUserRating={initialUserRating}
+          initialUserReviewTitle={initialUserReviewTitle}
+          initialUserReviewText={initialUserReviewText}
         />
       </main>
       <Footer />

@@ -12,7 +12,8 @@ import {
   Calendar,
   Clock,
   Loader2,
-  FileWarning
+  FileWarning,
+  Star
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,6 +31,9 @@ interface Note {
   downloads_count: number;
   view_count: number;
   bookmarks_count: number;
+  average_rating: number;
+  total_ratings: number;
+  total_reviews: number;
   file_url: string;
   subjects?: {
     name: string;
@@ -175,7 +179,7 @@ export default function MyUploadsClient({ initialNotes }: { initialNotes: Note[]
                   </div>
 
                   {/* Stats Section */}
-                  <div className="bg-zinc-950/50 px-5 py-3 border-y border-zinc-800/50 grid grid-cols-3 gap-2 divide-x divide-zinc-800/50 text-center">
+                  <div className="bg-zinc-950/50 px-5 py-3 border-y border-zinc-800/50 grid grid-cols-4 gap-2 divide-x divide-zinc-800/50 text-center">
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-zinc-200">{note.downloads_count}</span>
                       <span className="text-[10px] uppercase tracking-wider text-zinc-500">Dls</span>
@@ -187,6 +191,12 @@ export default function MyUploadsClient({ initialNotes }: { initialNotes: Note[]
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-zinc-200">{note.bookmarks_count}</span>
                       <span className="text-[10px] uppercase tracking-wider text-zinc-500">Saves</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-yellow-500 flex items-center justify-center gap-1">
+                         <Star className="h-3 w-3 fill-yellow-500" /> {note.average_rating > 0 ? note.average_rating.toFixed(1) : "—"}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 mt-1">{note.total_ratings}</span>
                     </div>
                   </div>
 

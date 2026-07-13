@@ -120,6 +120,9 @@ export type Database = {
           downloads_count: number
           bookmarks_count: number
           view_count: number
+          average_rating: number
+          total_ratings: number
+          total_reviews: number
           created_at: string
           updated_at: string
         }
@@ -141,6 +144,9 @@ export type Database = {
           downloads_count?: number
           bookmarks_count?: number
           view_count?: number
+          average_rating?: number
+          total_ratings?: number
+          total_reviews?: number
           created_at?: string
           updated_at?: string
         }
@@ -162,6 +168,9 @@ export type Database = {
           downloads_count?: number
           bookmarks_count?: number
           view_count?: number
+          average_rating?: number
+          total_ratings?: number
+          total_reviews?: number
           created_at?: string
           updated_at?: string
         }
@@ -224,7 +233,11 @@ export type Database = {
           user_id: string
           note_id: string
           rating: number
-          comment: string | null
+          review_text: string | null
+          review_title: string | null
+          is_verified_downloader: boolean
+          status: 'visible' | 'hidden' | 'removed'
+          helpful_count: number
           created_at: string
           updated_at: string
         }
@@ -233,7 +246,11 @@ export type Database = {
           user_id: string
           note_id: string
           rating: number
-          comment?: string | null
+          review_text?: string | null
+          review_title?: string | null
+          is_verified_downloader?: boolean
+          status?: 'visible' | 'hidden' | 'removed'
+          helpful_count?: number
           created_at?: string
           updated_at?: string
         }
@@ -242,7 +259,11 @@ export type Database = {
           user_id?: string
           note_id?: string
           rating?: number
-          comment?: string | null
+          review_text?: string | null
+          review_title?: string | null
+          is_verified_downloader?: boolean
+          status?: 'visible' | 'hidden' | 'removed'
+          helpful_count?: number
           created_at?: string
           updated_at?: string
         }
@@ -256,6 +277,42 @@ export type Database = {
           },
           {
             foreignKeyName: "ratings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      review_helpful_votes: {
+        Row: {
+          id: string
+          review_id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          review_id: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          review_id?: string
+          user_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_helpful_votes_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_helpful_votes_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -343,6 +400,51 @@ export type Database = {
           },
           {
             foreignKeyName: "reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      review_reports: {
+        Row: {
+          id: string
+          reporter_id: string
+          review_id: string
+          reason: string
+          details: string | null
+          status: 'pending' | 'resolved' | 'dismissed'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          reporter_id: string
+          review_id: string
+          reason: string
+          details?: string | null
+          status?: 'pending' | 'resolved' | 'dismissed'
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          reporter_id?: string
+          review_id?: string
+          reason?: string
+          details?: string | null
+          status?: 'pending' | 'resolved' | 'dismissed'
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_reports_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_reports_reporter_id_fkey"
             columns: ["reporter_id"]
             isOneToOne: false
             referencedRelation: "profiles"
