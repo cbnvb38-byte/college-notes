@@ -345,13 +345,13 @@ export async function removeNote(noteId: string) {
     const { error: notifyError } = await supabase.from("notifications").insert({
       user_id: note.author_id,
       title: "Note Removed",
-      message: `Your note "${note.title}" has been removed by a moderator.`,
+      message: `Your note "${note.title}" has been removed by moderation.`,
       type: "report_action",
     });
 
     if (notifyError) {
       console.error("[removeNote] Notification insert error:", notifyError);
-      throw notifyError;
+      // Don't fail the action if just the notification fails
     }
 
     // Log
@@ -366,6 +366,69 @@ export async function removeNote(noteId: string) {
     });
 
     revalidatePath("/dashboard/admin");
+    revalidatePath("/dashboard/admin/reports");
+    revalidatePath("/dashboard/browse");
+    revalidatePath("/dashboard/my-uploads");
+
+    return { success: true };
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+// ============================================================
+// Restore Note
+// ============================================================
+
+export async function restoreNote(noteId: string) {
+  try {
+    const { userId } = await verifyAdminAccess();
+    if (!noteId) throw new AppError("Note ID is required", 400, "INVALID_INPUT");
+
+    const supabase = createServiceRoleSupabaseClient();
+
+    const { data: note, error: fetchError } = await supabase
+      .from("notes")
+      .select("id, status, title, author_id")
+      .eq("id", noteId)
+      .single();
+
+    if (fetchError || !note) {
+      throw new AppError("Note not found.", 404, "NOT_FOUND");
+    }
+
+    const { error: updateError } = await supabase
+      .from("notes")
+      .update({ status: "approved", updated_at: new Date().toISOString() })
+      .eq("id", noteId);
+
+    if (updateError) throw updateError;
+
+    // Notify uploader
+    const { error: notifyError } = await supabase.from("notifications").insert({
+      user_id: note.author_id,
+      title: "Note Restored",
+      message: `Your note "${note.title}" has been restored by moderation and is publicly visible again.`,
+      type: "report_action",
+    });
+
+    if (notifyError) {
+      console.error("[restoreNote] Notification insert error:", notifyError);
+    }
+
+    // Log
+    const ip = await getClientIp();
+    await supabase.from("admin_logs").insert({
+      admin_id: userId,
+      action: "restore_note",
+      target_id: noteId,
+      target_type: "note",
+      details: { title: note.title, previous_status: note.status },
+      ip_address: ip,
+    });
+
+    revalidatePath("/dashboard/admin");
+    revalidatePath("/dashboard/admin/reports");
     revalidatePath("/dashboard/browse");
     revalidatePath("/dashboard/my-uploads");
 

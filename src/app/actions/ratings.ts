@@ -10,9 +10,9 @@ export async function getRatingSummary(noteId: string) {
   
   const { data: ratingsData, error: distError } = await supabase
     .from("ratings")
-    .select("rating, review_text")
+    .select("rating, review_text, status")
     .eq("note_id", noteId)
-    .eq("status", "visible");
+    .in("status", ["visible", "hidden"]);
 
   if (distError) {
     throw distError;
@@ -30,7 +30,7 @@ export async function getRatingSummary(noteId: string) {
         distribution[r.rating as 1|2|3|4|5]++;
         totalScore += r.rating;
       }
-      if (r.review_text && r.review_text.trim() !== "") {
+      if (r.review_text && r.review_text.trim() !== "" && r.status === "visible") {
         totalReviews++;
       }
     });
@@ -380,12 +380,64 @@ export async function getReviewsForNote(noteId: string, options: ReviewFilterOpt
 
 export async function updateReviewStatus(reviewId: string, status: "visible" | "hidden" | "removed") {
   try {
+    const { userId } = await auth();
+    if (!userId) throw new AppError("You must be logged in", 401, "UNAUTHORIZED");
+
     const supabase = createServiceRoleSupabaseClient();
+
+    // Verify role
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", userId).single();
+    if (profile?.role !== "admin" && profile?.role !== "moderator") {
+      throw new AppError("Forbidden", 403, "FORBIDDEN");
+    }
+
+    // Get existing review
+    const { data: review, error: fetchError } = await supabase
+      .from("ratings")
+      .select("user_id, note_id, status")
+      .eq("id", reviewId)
+      .single();
+
+    if (fetchError || !review) throw new AppError("Review not found", 404, "NOT_FOUND");
+
     const { error } = await supabase
       .from("ratings")
       .update({ status })
       .eq("id", reviewId);
     if (error) throw error;
+
+    // Log admin action
+    await supabase.from("admin_logs").insert({
+      admin_id: userId,
+      action: `review_${status}`,
+      target_id: reviewId,
+      target_type: "review",
+      details: { previous_status: review.status },
+    });
+
+    // Notify user
+    let title = "Review Updated";
+    let message = "Your review has been updated by moderation.";
+    if (status === "hidden") {
+      title = "Review Hidden";
+      message = "Your review text has been hidden from public view for violating guidelines, but your rating score remains.";
+    } else if (status === "removed") {
+      title = "Review Removed";
+      message = "Your review and rating have been completely removed by moderation.";
+    } else if (status === "visible") {
+      title = "Review Restored";
+      message = "Your review has been restored and is publicly visible again.";
+    }
+
+    await supabase.from("notifications").insert({
+      user_id: review.user_id,
+      title,
+      message,
+      type: "report_action",
+    });
+
+    revalidatePath(`/notes/${review.note_id}`);
+    revalidatePath(`/dashboard/admin/reports`);
     return { success: true };
   } catch (error) {
     return handleError(error);

@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { useAuth } from "@clerk/nextjs";
 import { submitRating, removeRating } from "@/app/actions/ratings";
 import { ReviewsSection } from "./reviews-section";
+import { reportNote } from "@/app/actions/reports";
 
 interface RelatedNote {
   id: string;
@@ -117,6 +118,12 @@ export default function NoteDetailsClient({
   const [previewError, setPreviewError] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked);
   const [isBookmarking, setIsBookmarking] = useState(false);
+
+  // Report Note state
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   const handleToggleBookmark = async () => {
     if (isBookmarking) return; // Guard against rapid clicks
@@ -221,6 +228,40 @@ export default function NoteDetailsClient({
       setDownloadError(err instanceof Error ? err.message : "Unable to download note. Please try again later.");
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleSubmitReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportReason) {
+      toast.error("Please select a reason for reporting.");
+      return;
+    }
+    if (reportReason === "Other" && !reportDetails.trim()) {
+      toast.error("Please provide additional details for the 'Other' reason.");
+      return;
+    }
+    if (reportDetails.length > 1000) {
+      toast.error("Details cannot exceed 1000 characters.");
+      return;
+    }
+
+    try {
+      setIsSubmittingReport(true);
+      const res = await reportNote(note.id, reportReason, reportDetails);
+      if (res.success) {
+        toast.success("Note reported successfully. Thank you for your feedback.");
+        setIsReportModalOpen(false);
+        setReportReason("");
+        setReportDetails("");
+      } else {
+        const err = "error" in res ? res.error : null;
+        toast.error(err?.message || "Failed to submit report.");
+      }
+    } catch (error) {
+      toast.error("An unexpected error occurred while submitting the report.");
+    } finally {
+      setIsSubmittingReport(false);
     }
   };
 
@@ -404,8 +445,6 @@ export default function NoteDetailsClient({
                   </span>
                 </div>
 
-
-
               </div>
 
               {/* Statistics Grid */}
@@ -425,41 +464,54 @@ export default function NoteDetailsClient({
               </div>
 
               {/* Actions Grid */}
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                <Button
-                  onClick={handleToggleBookmark}
-                  disabled={isBookmarking}
-                  variant="outline"
-                  className={`w-full font-bold flex items-center justify-center gap-2 rounded-xl text-sm py-6 shadow-xl transition-all active:scale-[0.98] ${
-                    isBookmarked 
-                      ? "bg-pink-500/10 text-pink-500 border-pink-500/20 hover:bg-pink-500/20" 
-                      : "border-zinc-800 text-zinc-300 hover:bg-zinc-800/30"
-                  }`}
-                >
-                  {isBookmarking ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <>
-                      <Bookmark className={`h-5 w-5 ${isBookmarked ? "fill-pink-500" : ""}`} /> 
-                      {isBookmarked ? "Saved" : "Save Note"}
-                    </>
-                  )}
-                </Button>
-                <Button
-                  onClick={handleDownload}
-                  disabled={isDownloading}
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center gap-2 rounded-xl text-sm py-6 shadow-xl shadow-indigo-500/10 disabled:opacity-50 transition-all active:scale-[0.98]"
-                >
-                  {isDownloading ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" /> Downloading...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-5 w-5" /> Download PDF
-                    </>
-                  )}
-                </Button>
+              <div className="flex flex-col gap-3 mt-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={handleToggleBookmark}
+                    disabled={isBookmarking}
+                    variant="outline"
+                    className={`w-full font-bold flex items-center justify-center gap-2 rounded-xl text-sm py-6 shadow-xl transition-all active:scale-[0.98] ${
+                      isBookmarked 
+                        ? "bg-pink-500/10 text-pink-500 border-pink-500/20 hover:bg-pink-500/20" 
+                        : "border-zinc-800 text-zinc-300 hover:bg-zinc-800/30"
+                    }`}
+                  >
+                    {isBookmarking ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Bookmark className={`h-5 w-5 ${isBookmarked ? "fill-pink-500" : ""}`} /> 
+                        {isBookmarked ? "Saved" : "Save Note"}
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleDownload}
+                    disabled={isDownloading}
+                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center gap-2 rounded-xl text-sm py-6 shadow-xl shadow-indigo-500/10 disabled:opacity-50 transition-all active:scale-[0.98]"
+                  >
+                    {isDownloading ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" /> Downloading...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-5 w-5" /> Download PDF
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {userId && (
+                  <Button
+                    onClick={() => setIsReportModalOpen(true)}
+                    disabled={isAuthor}
+                    variant="outline"
+                    className="w-full border-red-500/20 text-red-400 hover:bg-red-500/10 hover:text-red-300 font-bold flex items-center justify-center gap-2 rounded-xl text-sm py-6 shadow-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={isAuthor ? "You cannot report your own note." : undefined}
+                  >
+                    <FileWarning className="h-5 w-5" /> Report Note
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -522,6 +574,89 @@ export default function NoteDetailsClient({
           </div>
         )}
       </div>
+
+      {isReportModalOpen && (
+        <div className="fixed inset-0 bg-zinc-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <Card className="bg-zinc-900 border-zinc-800 w-full max-w-md shadow-2xl overflow-hidden">
+            <CardHeader className="border-b border-zinc-800/40">
+              <CardTitle className="text-sm font-bold text-red-400 flex items-center gap-2">
+                <FileWarning className="h-4 w-4" /> Report Note
+              </CardTitle>
+            </CardHeader>
+            <form onSubmit={handleSubmitReport}>
+              <CardContent className="pt-4 flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-zinc-400">Reason</label>
+                  <select
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    required
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-sm text-zinc-200 focus:border-red-500/50 focus:outline-none"
+                  >
+                    <option value="" disabled>Select a reason...</option>
+                    <option value="Incorrect information">Incorrect information</option>
+                    <option value="Copyright concern">Copyright concern</option>
+                    <option value="Duplicate content">Duplicate content</option>
+                    <option value="Inappropriate content">Inappropriate content</option>
+                    <option value="Broken or unreadable file">Broken or unreadable file</option>
+                    <option value="Wrong subject or semester">Wrong subject or semester</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-zinc-400">
+                    Details {reportReason !== "Other" && <span className="text-zinc-650 font-normal">(optional)</span>}
+                  </label>
+                  <textarea
+                    value={reportDetails}
+                    onChange={(e) => setReportDetails(e.target.value)}
+                    required={reportReason === "Other"}
+                    maxLength={1000}
+                    placeholder={
+                      reportReason === "Other"
+                        ? "Please specify the details (required)..."
+                        : "Provide additional details (optional)..."
+                    }
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-red-500/50 focus:outline-none min-h-[120px] resize-none"
+                  />
+                  <div className="text-[10px] text-zinc-600 text-right">
+                    {reportDetails.length}/1000 characters
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end pt-2 border-t border-zinc-800/40">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsReportModalOpen(false);
+                      setReportReason("");
+                      setReportDetails("");
+                    }}
+                    className="border-zinc-800 text-zinc-400 text-xs h-8"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={isSubmittingReport || !reportReason || (reportReason === "Other" && !reportDetails.trim())}
+                    className="bg-red-600 hover:bg-red-500 text-white text-xs h-8 gap-1 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmittingReport ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" /> Submitting...
+                      </>
+                    ) : (
+                      "Submit Report"
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </form>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
