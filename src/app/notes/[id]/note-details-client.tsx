@@ -422,7 +422,16 @@ export default function NoteDetailsClient({
                     <User className="h-4 w-4 shrink-0 text-zinc-600" /> Contributor
                   </span>
                   <span className="text-zinc-200 font-bold text-right truncate max-w-[180px]">
-                    {note.profiles?.name || "Anonymous"}
+                    {note.author_id ? (
+                      <Link 
+                        href={`/contributors/${note.author_id}`}
+                        className="text-indigo-400 hover:text-indigo-300 hover:underline font-semibold"
+                      >
+                        {note.profiles?.name || "Anonymous"}
+                      </Link>
+                    ) : (
+                      note.profiles?.name || "Anonymous"
+                    )}
                   </span>
                 </div>
 

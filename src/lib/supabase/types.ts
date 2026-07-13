@@ -18,6 +18,13 @@ export type Database = {
           role: Database["public"]["Enums"]["user_role"]
           created_at: string
           updated_at: string
+          college: string | null
+          branch: string | null
+          bio: string | null
+          is_college_public: boolean
+          is_branch_public: boolean
+          is_bio_public: boolean
+          is_avatar_public: boolean
         }
         Insert: {
           id: string
@@ -27,6 +34,13 @@ export type Database = {
           role?: Database["public"]["Enums"]["user_role"]
           created_at?: string
           updated_at?: string
+          college?: string | null
+          branch?: string | null
+          bio?: string | null
+          is_college_public?: boolean
+          is_branch_public?: boolean
+          is_bio_public?: boolean
+          is_avatar_public?: boolean
         }
         Update: {
           id?: string
@@ -36,6 +50,13 @@ export type Database = {
           role?: Database["public"]["Enums"]["user_role"]
           created_at?: string
           updated_at?: string
+          college?: string | null
+          branch?: string | null
+          bio?: string | null
+          is_college_public?: boolean
+          is_branch_public?: boolean
+          is_bio_public?: boolean
+          is_avatar_public?: boolean
         }
         Relationships: []
       }

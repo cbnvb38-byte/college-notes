@@ -15,7 +15,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  ExternalLink
+  ExternalLink,
+  BarChart3,
+  Star
 } from "lucide-react";
 import { 
   Card, 
@@ -69,6 +71,11 @@ interface Note {
   semester: number;
   status: "draft" | "pending_review" | "approved" | "rejected" | "removed";
   downloads_count: number;
+  view_count: number;
+  bookmarks_count: number;
+  average_rating: number;
+  total_ratings: number;
+  total_reviews: number;
   created_at: string;
 }
 
@@ -255,14 +262,17 @@ export default function Dashboard() {
           {/* Main Tabs panel */}
           <Tabs defaultValue="uploads" className="w-full flex-grow flex flex-col">
             <TabsList className="bg-zinc-900/50 border border-zinc-800/80 p-1 w-fit rounded-xl gap-1">
-              <TabsTrigger value="uploads" className="text-xs px-4 py-2 rounded-lg data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50">
+              <TabsTrigger value="uploads" className="text-xs px-4 py-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 data-[state=active]:bg-zinc-100 data-[state=active]:text-zinc-950 data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 transition-all font-semibold">
                 My Uploads ({filteredNotes.length})
               </TabsTrigger>
-              <TabsTrigger value="bookmarks" className="text-xs px-4 py-2 rounded-lg data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50">
+              <TabsTrigger value="bookmarks" className="text-xs px-4 py-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 data-[state=active]:bg-zinc-100 data-[state=active]:text-zinc-950 data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 transition-all font-semibold">
                 Bookmarked ({favorites.length})
               </TabsTrigger>
-              <TabsTrigger value="timeline" className="text-xs px-4 py-2 rounded-lg data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50">
+              <TabsTrigger value="timeline" className="text-xs px-4 py-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 data-[state=active]:bg-zinc-100 data-[state=active]:text-zinc-950 data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 transition-all font-semibold">
                 Activity Logs
+              </TabsTrigger>
+              <TabsTrigger value="stats" className="text-xs px-4 py-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 data-[state=active]:bg-zinc-100 data-[state=active]:text-zinc-950 data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 transition-all font-semibold">
+                Contributor Stats
               </TabsTrigger>
             </TabsList>
 
@@ -379,6 +389,103 @@ export default function Dashboard() {
                       <p className="text-sm">No activity recorded yet.</p>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Contributor Stats Tab */}
+            <TabsContent value="stats" className="flex-1 mt-4">
+              <Card className="bg-zinc-900/15 border-zinc-800/50 shadow-inner">
+                <CardContent className="p-6 flex flex-col gap-6">
+                  {(() => {
+                    const totalUploaded = notes.length;
+                    const approved = notes.filter(n => n.status === "approved").length;
+                    const pending = notes.filter(n => n.status === "pending_review").length;
+                    const rejected = notes.filter(n => n.status === "rejected").length;
+                    const removed = notes.filter(n => n.status === "removed").length;
+
+                    const views = notes.reduce((sum, n) => sum + (n.view_count || 0), 0);
+                    const dls = notes.reduce((sum, n) => sum + (n.downloads_count || 0), 0);
+                    const saves = notes.reduce((sum, n) => sum + (n.bookmarks_count || 0), 0);
+                    const totalRatings = notes.reduce((sum, n) => sum + (n.total_ratings || 0), 0);
+                    const totalReviews = notes.reduce((sum, n) => sum + (n.total_reviews || 0), 0);
+
+                    const ratedApproved = notes.filter(n => n.status === "approved" && n.total_ratings > 0);
+                    const averageRating = ratedApproved.length > 0
+                      ? (ratedApproved.reduce((sum, n) => sum + (n.average_rating || 0), 0) / ratedApproved.length).toFixed(1)
+                      : "0.0";
+
+                    return (
+                      <div className="flex flex-col gap-6">
+                        <div>
+                          <h3 className="text-sm font-bold text-zinc-200">Contributor Dashboard Summary</h3>
+                          <p className="text-xs text-zinc-500 mt-0.5">Comprehensive engagement and content delivery metrics.</p>
+                        </div>
+
+                        {/* Top Summary Cards */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          <div className="bg-zinc-950/40 p-4 border border-zinc-850 rounded-xl text-center flex flex-col gap-1.5 justify-center">
+                            <span className="text-2xl font-extrabold text-zinc-100">{totalUploaded}</span>
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">Total Uploads</span>
+                          </div>
+                          <div className="bg-zinc-950/40 p-4 border border-zinc-850 rounded-xl text-center flex flex-col gap-1.5 justify-center">
+                            <span className="text-2xl font-extrabold text-zinc-100">{views}</span>
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">Total Views</span>
+                          </div>
+                          <div className="bg-zinc-950/40 p-4 border border-zinc-850 rounded-xl text-center flex flex-col gap-1.5 justify-center">
+                            <span className="text-2xl font-extrabold text-zinc-100">{dls}</span>
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">Total Downloads</span>
+                          </div>
+                          <div className="bg-zinc-950/40 p-4 border border-zinc-850 rounded-xl text-center flex flex-col gap-1.5 justify-center">
+                            <span className="text-2xl font-extrabold text-zinc-100">{saves}</span>
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">Total Saves</span>
+                          </div>
+                        </div>
+
+                        {/* Status Breakdown Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-zinc-850">
+                          {/* Left: Notes count by Status */}
+                          <div className="flex flex-col gap-3">
+                            <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider pl-1">Status Breakdown</h4>
+                            <div className="flex flex-col bg-zinc-950/20 border border-zinc-850 rounded-xl overflow-hidden divide-y divide-zinc-850">
+                              {[
+                                { label: "Approved Notes", value: approved, color: "text-emerald-400" },
+                                { label: "Pending Review", value: pending, color: "text-amber-400" },
+                                { label: "Rejected Notes", value: rejected, color: "text-red-400" },
+                                { label: "Removed Notes", value: removed, color: "text-zinc-500" },
+                              ].map((item) => (
+                                <div key={item.label} className="flex justify-between items-center py-2.5 px-4 text-xs">
+                                  <span className="text-zinc-400 font-semibold">{item.label}</span>
+                                  <span className={`font-bold ${item.color}`}>{item.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Right: Feedback & Ratings Summary */}
+                          <div className="flex flex-col gap-3">
+                            <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider pl-1">Feedback Summary</h4>
+                            <div className="flex flex-col bg-zinc-950/20 border border-zinc-850 rounded-xl overflow-hidden divide-y divide-zinc-850">
+                              <div className="flex justify-between items-center py-2.5 px-4 text-xs">
+                                <span className="text-zinc-400 font-semibold">Total Ratings Received</span>
+                                <span className="font-bold text-zinc-200">{totalRatings}</span>
+                              </div>
+                              <div className="flex justify-between items-center py-2.5 px-4 text-xs">
+                                <span className="text-zinc-400 font-semibold">Total Written Reviews</span>
+                                <span className="font-bold text-zinc-200">{totalReviews}</span>
+                              </div>
+                              <div className="flex justify-between items-center py-2.5 px-4 text-xs">
+                                <span className="text-zinc-400 font-semibold">Average rating across uploaded notes</span>
+                                <span className="font-extrabold text-yellow-500 flex items-center gap-1">
+                                  {averageRating} <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             </TabsContent>

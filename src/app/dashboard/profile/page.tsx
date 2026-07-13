@@ -16,11 +16,36 @@ export default function ProfilePage() {
   const [role, setRole] = useState("student");
   const [isPending, startTransition] = useTransition();
 
+  // Profile data state
+  const [college, setCollege] = useState("");
+  const [branch, setBranch] = useState("");
+  const [bio, setBio] = useState("");
+
+  // Privacy toggles
+  const [isCollegePublic, setIsCollegePublic] = useState(true);
+  const [isBranchPublic, setIsBranchPublic] = useState(true);
+  const [isBioPublic, setIsBioPublic] = useState(true);
+  const [isAvatarPublic, setIsAvatarPublic] = useState(true);
+
   useEffect(() => {
     if (user?.id) {
-      supabase.from("profiles").select("role").eq("id", user.id).single().then(({ data }) => {
-        if (data) setRole(data.role);
-      });
+      supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setRole(data.role);
+            setCollege(data.college || "");
+            setBranch(data.branch || "");
+            setBio(data.bio || "");
+            setIsCollegePublic(data.is_college_public);
+            setIsBranchPublic(data.is_branch_public);
+            setIsBioPublic(data.is_bio_public);
+            setIsAvatarPublic(data.is_avatar_public);
+          }
+        });
     }
   }, [user?.id, supabase]);
 
@@ -32,13 +57,24 @@ export default function ProfilePage() {
     );
   }
 
-  const handleSave = () => {
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
     startTransition(async () => {
-      const result = await updateProfileSettings({});
+      const result = await updateProfileSettings({
+        college: college.trim() || null,
+        branch: branch.trim() || null,
+        bio: bio.trim() || null,
+        is_college_public: isCollegePublic,
+        is_branch_public: isBranchPublic,
+        is_bio_public: isBioPublic,
+        is_avatar_public: isAvatarPublic,
+      });
+
       if (result.success) {
         toast.success("Profile settings updated successfully");
       } else {
-        toast.error(result.error || "Failed to update profile settings");
+        const err = "error" in result ? result.error : null;
+        toast.error((err as any)?.message || "Failed to update profile settings");
       }
     });
   };
@@ -50,14 +86,14 @@ export default function ProfilePage() {
           Student Profile
         </h1>
         <p className="text-zinc-400 text-sm">
-          View and manage your academic profile information.
+          View and manage your academic profile information and privacy settings.
         </p>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
         {/* Left column: Avatar card */}
-        <Card className="bg-zinc-900/30 border-zinc-800/60 backdrop-blur-sm shadow-xl md:col-span-1 items-center text-center">
-          <CardHeader className="items-center pb-4">
+        <Card className="bg-zinc-900/30 border-zinc-800/60 backdrop-blur-sm shadow-xl md:col-span-1 flex flex-col justify-between">
+          <CardHeader className="items-center text-center pb-4">
             <div className="h-20 w-20 rounded-full bg-gradient-to-tr from-indigo-500 to-violet-500 p-0.5 mb-2">
               {user?.imageUrl ? (
                 <img 
@@ -76,14 +112,25 @@ export default function ProfilePage() {
               {role} account
             </CardDescription>
           </CardHeader>
-          <CardContent className="border-t border-zinc-800/40 pt-4 flex flex-col gap-3 text-xs text-zinc-400 items-start">
+          <CardContent className="border-t border-zinc-800/40 pt-4 flex flex-col gap-4 text-xs text-zinc-400 items-start w-full">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-zinc-500" />
               <span>Joined {new Date(user?.createdAt || Date.now()).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-2">
               <ShieldAlert className="h-4 w-4 text-zinc-500" />
               <span>Status: Active</span>
+            </div>
+            
+            {/* Avatar Visibility Toggle */}
+            <div className="flex items-center gap-2 pt-3 border-t border-zinc-800/40 w-full justify-between">
+              <span className="font-semibold text-zinc-300">Public Avatar</span>
+              <input
+                type="checkbox"
+                checked={isAvatarPublic}
+                onChange={(e) => setIsAvatarPublic(e.target.checked)}
+                className="h-4 w-4 rounded bg-zinc-950 border-zinc-800 text-indigo-600 focus:ring-indigo-500/50"
+              />
             </div>
           </CardContent>
         </Card>
@@ -95,7 +142,7 @@ export default function ProfilePage() {
             <CardDescription className="text-xs text-zinc-500">Contact and college department parameters.</CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
-            <form action={handleSave} className="flex flex-col gap-5">
+            <form onSubmit={handleSave} className="flex flex-col gap-5">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">First Name</label>
@@ -133,38 +180,80 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4 border-t border-zinc-800/40 pt-4">
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Academic Department</label>
-                  <div className="relative">
-                    <GraduationCap className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
-                    <select
-                      name="department"
-                      className="w-full pl-9 bg-zinc-900/50 border border-zinc-800 text-xs rounded-xl h-10 px-3 text-zinc-300 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 outline-none cursor-pointer"
-                      defaultValue="cs"
-                    >
-                      <option value="cs">Computer Science & Engineering</option>
-                      <option value="ee">Electrical Engineering</option>
-                      <option value="me">Mechanical Engineering</option>
-                      <option value="cv">Civil Engineering</option>
-                    </select>
+              {/* Bio Section */}
+              <div className="flex flex-col gap-2 border-t border-zinc-800/40 pt-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Bio</label>
+                  <div className="flex items-center gap-2 text-xs text-zinc-500">
+                    <span>Show publicly</span>
+                    <input
+                      type="checkbox"
+                      checked={isBioPublic}
+                      onChange={(e) => setIsBioPublic(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded bg-zinc-950 border-zinc-800 text-indigo-600 focus:ring-indigo-500/50"
+                    />
                   </div>
                 </div>
+                <textarea
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="Tell other students about yourself..."
+                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-300 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 outline-none min-h-[80px] resize-none"
+                />
+              </div>
+
+              {/* College & Branch */}
+              <div className="grid sm:grid-cols-2 gap-4 border-t border-zinc-800/40 pt-4">
                 <div className="flex flex-col gap-2">
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Target Semester</label>
-                  <select
-                    name="semester"
-                    className="bg-zinc-900/50 border border-zinc-800 text-xs rounded-xl h-10 px-3 text-zinc-300 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 outline-none cursor-pointer"
-                    defaultValue="5"
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                      <option key={sem} value={sem}>Semester {sem}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">College</label>
+                    <div className="flex items-center gap-2 text-xs text-zinc-500">
+                      <span>Show publicly</span>
+                      <input
+                        type="checkbox"
+                        checked={isCollegePublic}
+                        onChange={(e) => setIsCollegePublic(e.target.checked)}
+                        className="h-3.5 w-3.5 rounded bg-zinc-950 border-zinc-800 text-indigo-600 focus:ring-indigo-500/50"
+                      />
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <GraduationCap className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                    <Input 
+                      value={college} 
+                      onChange={(e) => setCollege(e.target.value)}
+                      placeholder="e.g. Stanford University"
+                      className="pl-9 bg-zinc-900/50 border-zinc-800 text-zinc-300 rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Branch / Dept</label>
+                    <div className="flex items-center gap-2 text-xs text-zinc-500">
+                      <span>Show publicly</span>
+                      <input
+                        type="checkbox"
+                        checked={isBranchPublic}
+                        onChange={(e) => setIsBranchPublic(e.target.checked)}
+                        className="h-3.5 w-3.5 rounded bg-zinc-950 border-zinc-800 text-indigo-600 focus:ring-indigo-500/50"
+                      />
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <GraduationCap className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                    <Input 
+                      value={branch} 
+                      onChange={(e) => setBranch(e.target.value)}
+                      placeholder="e.g. Computer Science"
+                      className="pl-9 bg-zinc-900/50 border-zinc-800 text-zinc-300 rounded-xl"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <Button disabled={isPending} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs py-5.5 font-semibold mt-2 shadow-lg shadow-indigo-500/10">
+              <Button disabled={isPending} type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs py-5.5 font-semibold mt-2 shadow-lg shadow-indigo-500/10">
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...

@@ -13,7 +13,9 @@ import {
   Clock,
   Loader2,
   FileWarning,
-  Star
+  Star,
+  BarChart3,
+  MessageSquare
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +30,7 @@ interface Note {
   status: "draft" | "pending_review" | "approved" | "rejected" | "removed";
   rejection_reason: string | null;
   created_at: string;
+  updated_at: string;
   downloads_count: number;
   view_count: number;
   bookmarks_count: number;
@@ -146,16 +149,23 @@ export default function MyUploadsClient({ initialNotes }: { initialNotes: Note[]
 
                     {/* Rejection Reason (if rejected) */}
                     {note.status === "rejected" && note.rejection_reason && (
-                      <div className="bg-red-500/5 border border-red-500/15 rounded-lg p-3 text-xs text-red-400 mt-2 flex flex-col gap-1">
-                        <span className="font-bold text-[10px] uppercase tracking-wider">Rejection Reason</span>
+                      <div className="bg-red-500/5 border border-red-500/15 rounded-lg p-2.5 text-xs text-red-400 mt-1 flex flex-col gap-1">
+                        <span className="font-bold text-[9px] uppercase tracking-wider">Rejection Reason</span>
                         <span className="font-medium">{note.rejection_reason}</span>
                       </div>
                     )}
 
-                    {/* View Action - Removed Notes */}
+                    {/* Pending review notice */}
+                    {note.status === "pending_review" && (
+                      <div className="bg-amber-500/5 border border-amber-500/15 rounded-lg p-2 text-center text-[10px] text-amber-400/90 font-medium">
+                        Public analytics may not yet be available.
+                      </div>
+                    )}
+
+                    {/* Removed notice */}
                     {note.status === "removed" && (
-                      <div className="bg-zinc-800/30 border border-zinc-700/30 rounded-lg p-3 text-xs text-zinc-400 mt-2 flex flex-col gap-1">
-                        <span className="font-medium text-center">This note was removed by a moderator.</span>
+                      <div className="bg-zinc-800/30 border border-zinc-700/35 rounded-lg p-2 text-center text-[10px] text-zinc-400 font-medium">
+                        This note is not publicly visible.
                       </div>
                     )}
 
@@ -171,50 +181,75 @@ export default function MyUploadsClient({ initialNotes }: { initialNotes: Note[]
                         <Calendar className="h-3.5 w-3.5" />
                         <span className="truncate">{note.subjects?.name || "Unknown Subject"}</span>
                       </div>
-                      <div className="flex items-center text-xs text-zinc-500 gap-2">
-                        <Clock className="h-3.5 w-3.5" />
-                        <span>{new Date(note.created_at).toLocaleDateString()}</span>
+                      <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500">
+                        <div>
+                          <span>Uploaded:</span>{" "}
+                          <span className="font-semibold text-zinc-400">{new Date(note.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div>
+                          <span>Updated:</span>{" "}
+                          <span className="font-semibold text-zinc-400">{new Date(note.updated_at).toLocaleDateString()}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   {/* Stats Section */}
-                  <div className="bg-zinc-950/50 px-5 py-3 border-y border-zinc-800/50 grid grid-cols-4 gap-2 divide-x divide-zinc-800/50 text-center">
+                  <div className="bg-zinc-950/50 px-4 py-3 border-y border-zinc-800/50 grid grid-cols-4 gap-2 divide-x divide-zinc-800/50 text-center">
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-zinc-200">{note.downloads_count}</span>
-                      <span className="text-[10px] uppercase tracking-wider text-zinc-500">Dls</span>
+                      <span className="text-[9px] uppercase tracking-wider text-zinc-500">Dls</span>
                     </div>
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-zinc-200">{note.view_count}</span>
-                      <span className="text-[10px] uppercase tracking-wider text-zinc-500">Views</span>
+                      <span className="text-[9px] uppercase tracking-wider text-zinc-500">Views</span>
                     </div>
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-zinc-200">{note.bookmarks_count}</span>
-                      <span className="text-[10px] uppercase tracking-wider text-zinc-500">Saves</span>
+                      <span className="text-[9px] uppercase tracking-wider text-zinc-500">Saves</span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-xs font-bold text-yellow-500 flex items-center justify-center gap-1">
+                      <span className="text-xs font-bold text-yellow-500 flex items-center justify-center gap-0.5">
                          <Star className="h-3 w-3 fill-yellow-500" /> {note.average_rating > 0 ? note.average_rating.toFixed(1) : "—"}
                       </span>
-                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 mt-1">{note.total_ratings}</span>
+                      <span className="text-[9px] text-zinc-500 mt-0.5 leading-none">
+                        {note.total_ratings} ({note.total_reviews} revs)
+                      </span>
                     </div>
                   </div>
 
                   {/* Actions Section */}
-                  <div className="p-3 bg-zinc-900/60 flex items-center justify-between gap-2">
-                    <div className="flex gap-2">
+                  <div className="p-3 bg-zinc-900/60 flex items-center justify-between gap-1">
+                    <div className="flex flex-wrap gap-1">
                       <Link 
                         href={`/notes/${note.id}`}
                         className={cn(
                           buttonVariants({ variant: "ghost", size: "sm" }),
-                          "h-8 text-xs text-zinc-400 hover:text-indigo-400 hover:bg-indigo-500/10 inline-flex items-center"
+                          "h-8 text-[11px] text-zinc-400 hover:text-indigo-400 hover:bg-indigo-500/10 px-2"
                         )}
                       >
-                        <Eye className="h-3.5 w-3.5 mr-1.5" /> View
+                        <Eye className="h-3.5 w-3.5 mr-1" /> View Note
                       </Link>
-                      <Button variant="ghost" size="sm" disabled className="h-8 text-xs text-zinc-600">
-                        <Edit className="h-3.5 w-3.5 mr-1.5" /> Edit
-                      </Button>
+                      
+                      <Link 
+                        href={`/dashboard/my-uploads/reviews?noteId=${note.id}`}
+                        className={cn(
+                          buttonVariants({ variant: "ghost", size: "sm" }),
+                          "h-8 text-[11px] text-zinc-400 hover:text-amber-400 hover:bg-amber-500/10 px-2"
+                        )}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 mr-1" /> Reviews
+                      </Link>
+
+                      <Link 
+                        href={`/dashboard/my-uploads/${note.id}/analytics`}
+                        className={cn(
+                          buttonVariants({ variant: "ghost", size: "sm" }),
+                          "h-8 text-[11px] text-zinc-400 hover:text-emerald-400 hover:bg-emerald-500/10 px-2"
+                        )}
+                      >
+                        <BarChart3 className="h-3.5 w-3.5 mr-1" /> Analytics
+                      </Link>
                     </div>
                     
                     <Button 
@@ -222,7 +257,7 @@ export default function MyUploadsClient({ initialNotes }: { initialNotes: Note[]
                       size="icon"
                       onClick={() => handleDelete(note.id)}
                       disabled={deletingId === note.id}
-                      className="h-8 w-8 text-zinc-500 hover:text-red-400 hover:bg-red-500/10"
+                      className="h-8 w-8 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 shrink-0"
                     >
                       {deletingId === note.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

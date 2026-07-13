@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Star, MessageSquare, ThumbsUp, Trash2, CheckCircle2, Edit2, AlertCircle, Filter, X, User } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -370,7 +371,18 @@ export function ReviewsSection({
                         {review.profiles?.name?.charAt(0).toUpperCase() || <User className="w-4 h-4" />}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium text-zinc-300">{review.profiles?.name || "Anonymous Student"}</span>
+                    <span className="text-sm font-medium text-zinc-300">
+                      {review.user_id ? (
+                        <Link 
+                          href={`/contributors/${review.user_id}`}
+                          className="text-indigo-400 hover:text-indigo-300 hover:underline"
+                        >
+                          {review.profiles?.name || "Anonymous Student"}
+                        </Link>
+                      ) : (
+                        review.profiles?.name || "Anonymous Student"
+                      )}
+                    </span>
                   </div>
                   
                   <div className="flex items-center gap-3 mt-1">

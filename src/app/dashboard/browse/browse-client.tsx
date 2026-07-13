@@ -56,6 +56,7 @@ interface NoteRow {
   total_reviews: number;
   created_at: string;
   file_url: string;
+  author_id: string;
   profiles: {
     name: string | null;
   } | null;
@@ -566,7 +567,17 @@ export default function BrowseNotesClient({
                       <div className="flex items-center gap-1.5 min-w-0">
                         <User className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
                         <span className="truncate">
-                          Uploader: {note.profiles?.name || "Anonymous"}
+                          Uploader:{" "}
+                          {note.author_id ? (
+                            <Link 
+                              href={`/contributors/${note.author_id}`}
+                              className="text-indigo-400 hover:text-indigo-300 font-semibold hover:underline"
+                            >
+                              {note.profiles?.name || "Anonymous"}
+                            </Link>
+                          ) : (
+                            note.profiles?.name || "Anonymous"
+                          )}
                         </span>
                       </div>
                       {note.college && (
