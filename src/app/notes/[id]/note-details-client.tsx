@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   FileText,
@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { incrementViewCountAction, logDownloadAction } from "@/app/actions/notes";
+import { incrementViewCountAction, logDownloadAction, recordRecentlyViewedAction } from "@/app/actions/notes";
 import { addBookmark, removeBookmark } from "@/app/actions/bookmarks";
 import { toast } from "sonner";
 import { useAuth } from "@clerk/nextjs";
@@ -167,6 +167,16 @@ export default function NoteDetailsClient({
     setTotalReviews(totalRevs);
     setDistribution(dist);
   };
+  // Record recently viewed once per page load for logged in users
+  const hasRecordedView = useRef(false);
+  useEffect(() => {
+    if (hasRecordedView.current || !userId) return;
+    hasRecordedView.current = true;
+    
+    // Fire and forget, failure won't break page
+    recordRecentlyViewedAction(note.id).catch(() => {});
+  }, [note.id, userId]);
+
 
   // Increment view count exactly once per session
   useEffect(() => {

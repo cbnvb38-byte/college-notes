@@ -181,9 +181,9 @@ export default function AnalyticsClient({ initialData }: { initialData: Analytic
                     <div key={idx} className="flex items-center justify-between text-xs pb-2 border-b border-zinc-850 last:border-none last:pb-0">
                       <div className="flex items-center gap-2.5">
                         <span className={`w-2 h-2 rounded-full ${activity.type === "download" ? "bg-indigo-500" : "bg-yellow-500"}`} />
-                        <span className="text-zinc-350">{activity.label}</span>
+                        <span className="text-zinc-200">{activity.label}</span>
                       </div>
-                      <span className="text-[10px] text-zinc-500" suppressHydrationWarning>
+                      <span className="text-[10px] text-zinc-400" suppressHydrationWarning>
                         {new Date(activity.date).toLocaleDateString()}
                       </span>
                     </div>

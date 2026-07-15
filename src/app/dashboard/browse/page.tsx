@@ -1,5 +1,6 @@
-import { fetchBranches } from "@/app/actions/notes";
+import { fetchBranches, fetchRecommendedNotesAction, fetchTrendingNotesAction, fetchRecentlyViewedNotesAction } from "@/app/actions/notes";
 import BrowseNotesClient from "./browse-client";
+import { DiscoverySections } from "./discovery-sections";
 import { Sparkles, FileWarning } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -11,8 +12,18 @@ export const metadata = {
 };
 
 export default async function BrowseNotesPage() {
-  // Fetch engineering branches on server to bootstrap the dropdown
-  const branchRes = await fetchBranches();
+  // Fetch engineering branches, bookmarks, recommendations, trending, and recently viewed on server
+  const [branchResult, recResult, trendResult, recentResult] = await Promise.allSettled([
+    fetchBranches(),
+    fetchRecommendedNotesAction(3),
+    fetchTrendingNotesAction(3),
+    fetchRecentlyViewedNotesAction(4)
+  ]);
+
+  const branchRes = branchResult.status === "fulfilled" ? branchResult.value : { success: false, error: "Failed to load branches" };
+  const recRes = recResult.status === "fulfilled" ? recResult.value : { success: false, data: [] };
+  const trendRes = trendResult.status === "fulfilled" ? trendResult.value : { success: false, data: [] };
+  const recentRes = recentResult.status === "fulfilled" ? recentResult.value : { success: false, data: undefined };
 
   if (!branchRes.success || "error" in branchRes) {
     console.error("[BrowseNotesPage Server Fetch Error]:", "error" in branchRes ? branchRes.error : "Unknown error");
@@ -40,6 +51,10 @@ export default async function BrowseNotesPage() {
   const bookmarksRes = await getCurrentUserBookmarkedNoteIds();
   const initialBookmarkedIds = bookmarksRes.success && "data" in bookmarksRes ? bookmarksRes.data : [];
 
+  const recommendedNotes = recRes.success && "data" in recRes ? recRes.data : [];
+  const trendingNotes = trendRes.success && "data" in trendRes ? trendRes.data : [];
+  const recentlyViewedNotes = recentRes.success && "data" in recentRes ? recentRes.data : undefined;
+
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto pb-12">
       <div className="flex flex-col gap-2">
@@ -50,6 +65,12 @@ export default async function BrowseNotesPage() {
           Browse verified academic guides, study handouts, and lecture notes.
         </p>
       </div>
+
+      <DiscoverySections 
+        recommendedNotes={recommendedNotes} 
+        trendingNotes={trendingNotes} 
+        recentlyViewedNotes={recentlyViewedNotes} 
+      />
 
       {/* Render the Client-Side Search, Filter, Sort and Paginated Notes Grid */}
       <BrowseNotesClient initialBranches={branches} initialBookmarkedIds={initialBookmarkedIds as string[]} />

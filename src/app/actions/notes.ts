@@ -258,7 +258,7 @@ export interface BrowseNotesFilters {
   branchId?: string;
   semester?: number;
   subjectId?: string;
-  sortBy?: "newest" | "downloads" | "views" | "highest_rated" | "most_reviewed";
+  sortBy?: "newest" | "downloads" | "views" | "highest_rated" | "most_reviewed" | "relevance";
   page?: number;
   limit?: number;
 }
@@ -269,125 +269,85 @@ export interface BrowseNotesFilters {
 export async function browseNotesAction(filters: BrowseNotesFilters) {
   try {
     const search = filters.search?.trim();
-    const branchId = filters.branchId;
-    const semester = filters.semester;
-    const subjectId = filters.subjectId;
-    const sortBy = filters.sortBy || "newest";
+    
+    let branchId = filters.branchId;
+    if (branchId === "all" || branchId === "") branchId = undefined;
+
+    let semester = filters.semester;
+    if (semester === 0) semester = undefined;
+
+    let subjectId = filters.subjectId;
+    if (subjectId === "all" || subjectId === "") subjectId = undefined;
+
+    let sortBy = filters.sortBy || "newest";
+    const allowedSorts = ["newest", "relevance", "downloads", "views", "highest_rated", "most_rated", "most_reviewed", "bookmarks"];
+    if (!allowedSorts.includes(sortBy)) {
+      sortBy = "newest";
+    }
+
     const page = filters.page || 1;
     const limit = filters.limit || 10;
 
-    // Use service-role client to bypass Profiles RLS so we can retrieve uploader names.
     const supabase = createServiceRoleSupabaseClient();
 
-    let matchedSubjectIds: string[] = [];
-
-    // Step 1: Search by subject name if search text is provided
-    if (search) {
-      const { data: matchedSubjects, error: subjectError } = await supabase
-        .from("subjects")
-        .select("id")
-        .ilike("name", `%${search}%`);
-
-      if (subjectError) {
-        console.error("[Database Operations Failure - browseNotesAction - subject search]:", subjectError);
-        throw subjectError;
-      }
-
-      if (matchedSubjects) {
-        matchedSubjectIds = matchedSubjects.map((s) => s.id);
-      }
-    }
-
-    // Step 2: Build main query
-    let query = supabase
-      .from("notes")
-      .select(`
-        id,
-        title,
-        description,
-        semester,
-        college,
-        professor,
-        downloads_count,
-        bookmarks_count,
-        view_count,
-        average_rating,
-        total_ratings,
-        total_reviews,
-        created_at,
-        file_url,
-        profiles (
-          name
-        ),
-        subjects!inner (
-          id,
-          name,
-          code,
-          branches!inner (
-            id,
-            name,
-            code
-          )
-        )
-      `, { count: "exact" })
-      .eq("status", "approved");
-
-    // Search condition across title, professor, college, or subject names
-    if (search) {
-      let orConditions = [
-        `title.ilike.%${search}%`,
-        `professor.ilike.%${search}%`,
-        `college.ilike.%${search}%`
-      ];
-
-      if (matchedSubjectIds.length > 0) {
-        orConditions.push(`subject_id.in.(${matchedSubjectIds.map(id => `"${id}"`).join(",")})`);
-      }
-
-      query = query.or(orConditions.join(","));
-    }
-
-    // Dynamic filtering
-    if (branchId && branchId !== "all") {
-      query = query.eq("subjects.branch_id", branchId);
-    }
-    if (semester && semester !== 0) {
-      query = query.eq("semester", semester);
-    }
-    if (subjectId && subjectId !== "all") {
-      query = query.eq("subject_id", subjectId);
-    }
-
-    // Sorting & Pagination Strategy
-    if (sortBy === "newest") {
-      query = query.order("created_at", { ascending: false });
-    } else if (sortBy === "downloads") {
-      query = query.order("downloads_count", { ascending: false });
-    } else if (sortBy === "views") {
-      query = query.order("view_count", { ascending: false });
-    } else if (sortBy === "highest_rated") {
-      query = query.order("average_rating", { ascending: false }).order("total_ratings", { ascending: false });
-    } else if (sortBy === "most_reviewed") {
-      query = query.order("total_reviews", { ascending: false });
-    }
-
     const from = (page - 1) * limit;
-    const to = from + limit - 1;
 
-    const { data: pagedNotes, count, error: notesError } = await query.range(from, to);
+    const { data: pagedNotes, error: notesError } = await (supabase.rpc as any)("search_notes", {
+      p_search: search || null,
+      p_branch_id: branchId || null,
+      p_semester: semester || null,
+      p_subject_id: subjectId || null,
+      p_college: null,
+      p_professor: null,
+      p_min_rating: null,
+      p_has_verified_reviews: null,
+      p_has_written_reviews: null,
+      p_recently_uploaded: null,
+      p_sort_by: sortBy,
+      p_limit: limit,
+      p_offset: from
+    });
+
     if (notesError) {
       console.error("[Database Operations Failure - browseNotesAction - notes query]:", notesError);
       throw notesError;
     }
     
-    let totalCount = count || 0;
+    let totalCount = 0;
+    if (pagedNotes && (pagedNotes as any[]).length > 0) {
+      totalCount = Number((pagedNotes as any[])[0].total_count);
+    }
     
-    // Ensure safe defaults
-    let notes = (pagedNotes || []).map((n: any) => ({
-      ...n,
+    // Ensure safe defaults and map the flat RPC structure to the nested structure expected by the UI
+    let notes = ((pagedNotes as any[]) || []).map((n: any) => ({
+      id: n.id,
+      title: n.title,
+      description: n.description,
+      semester: n.semester,
+      college: n.college,
+      professor: n.professor,
+      downloads_count: n.downloads_count || 0,
+      bookmarks_count: n.bookmarks_count || 0,
+      view_count: n.view_count || 0,
       average_rating: n.average_rating || 0,
       total_ratings: n.total_ratings || 0,
       total_reviews: n.total_reviews || 0,
+      created_at: n.created_at,
+      file_url: n.file_url,
+      author_id: n.author_id,
+      profiles: {
+        name: n.contributor_name
+      },
+      subjects: {
+        id: n.subject_id,
+        name: n.subject_name,
+        code: n.subject_code,
+        branches: {
+          id: n.branch_id,
+          name: n.branch_name,
+          code: n.branch_code
+        }
+      }
     }));
 
     const totalPages = Math.ceil(totalCount / limit);
@@ -471,31 +431,32 @@ export async function fetchNoteDetailsAction(noteId: string) {
     const ratingCount = note.total_ratings || 0;
     const totalReviews = note.total_reviews || 0;
 
-    // 3. Fetch related notes (same subject OR same semester), excluding the current note
-    const subjectId = note.subjects.id;
-    const sem = note.semester;
+    // 3. Fetch related notes using the new RPC
+    const { data: relatedNotesData, error: relatedError } = await (supabase.rpc as any)(
+      "get_related_notes",
+      { p_note_id: noteId, p_limit: 4 }
+    );
 
-    const { data: relatedNotes, error: relatedError } = await supabase
-      .from("notes")
-      .select(`
-        id,
-        title,
-        semester,
-        downloads_count,
-        view_count,
-        created_at,
-        subjects!inner (
-          name,
-          branches!inner (
-            name,
-            code
-          )
-        )
-      `)
-      .eq("status", "approved")
-      .neq("id", noteId)
-      .or(`subject_id.eq.${subjectId},semester.eq.${sem}`)
-      .limit(4);
+    if (relatedError) {
+      console.error("[Database Operations Failure - fetchNoteDetailsAction - related notes]:", relatedError);
+    }
+    
+    // Map RPC output to expected UI structure
+    const relatedNotes = ((relatedNotesData as any[]) || []).map((n: any) => ({
+      id: n.id,
+      title: n.title,
+      semester: n.semester,
+      downloads_count: n.downloads_count,
+      view_count: n.view_count,
+      created_at: n.created_at,
+      subjects: {
+        name: n.subject_name,
+        branches: {
+          name: n.branch_name,
+          code: n.branch_code
+        }
+      }
+    }));
 
     if (relatedError) {
       console.error("[Database Operations Failure - fetchNoteDetailsAction - related notes]:", relatedError);
@@ -526,6 +487,7 @@ export async function incrementViewCountAction(noteId: string) {
       throw new AppError("Note ID is required", 400, "INVALID_INPUT");
     }
 
+    const { userId } = await auth();
     const supabase = createServiceRoleSupabaseClient();
     console.log("[DEBUG incrementViewCountAction] Supabase service-role client created");
 
@@ -570,6 +532,85 @@ export async function incrementViewCountAction(noteId: string) {
     return { success: true };
   } catch (error) {
     console.error("[DEBUG incrementViewCountAction] Caught error:", error);
+    return handleError(error);
+  }
+}
+
+/**
+ * Records that a logged-in user recently viewed a note.
+ */
+export async function recordRecentlyViewedAction(noteId: string) {
+  try {
+    if (!noteId) return { success: false };
+
+    const { userId } = await auth();
+    if (!userId) return { success: true }; // Silent success for anonymous
+
+    // Use service role client to bypass any RLS complexity, as we already verified userId via auth()
+    const supabase = createServiceRoleSupabaseClient();
+    
+    // 1. Verify note exists and is approved
+    const { data: note, error: noteError } = await supabase
+      .from("notes")
+      .select("status")
+      .eq("id", noteId)
+      .single();
+      
+    if (noteError || !note || note.status !== "approved") {
+      return { success: false };
+    }
+    
+    // 2. Check if Clerk user exists in profiles (optional, but safe)
+    const { data: profileExists } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .single();
+      
+    if (profileExists) {
+      const { error: viewLogErr } = await (supabase as any).from("recently_viewed_notes").upsert({
+        user_id: userId,
+        note_id: noteId,
+        viewed_at: new Date().toISOString(),
+      }, { onConflict: "user_id,note_id" });
+      
+      if (viewLogErr) {
+        console.warn("[recordRecentlyViewedAction] Supabase recently viewed upsert failed:", viewLogErr);
+        return { success: false };
+      }
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.warn("[recordRecentlyViewedAction] Failed to log recently viewed:", error);
+    return { success: false }; // Never throw
+  }
+}
+
+/**
+ * Clears the recently viewed history for the logged-in user.
+ */
+export async function clearRecentlyViewedNotesAction() {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      throw new AppError("You must be logged in to clear history.", 401, "UNAUTHORIZED");
+    }
+
+    const supabase = createServiceRoleSupabaseClient();
+    
+    const { error } = await (supabase as any)
+      .from("recently_viewed_notes")
+      .delete()
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("[clearRecentlyViewedNotesAction] Error:", error);
+      throw error;
+    }
+
+    return { success: true };
+  } catch (error) {
     return handleError(error);
   }
 }
@@ -677,4 +718,234 @@ export async function logDownloadAction(noteId: string) {
   }
 }
 
+/**
+ * Fetches personalized recommendations using the RPC function.
+ */
+export async function fetchRecommendedNotesAction(limit = 6) {
+  try {
+    const { userId } = await auth();
+    const supabase = createServiceRoleSupabaseClient();
+    
+    // Check if Clerk user exists in public.profiles
+    let finalUserId = null;
+    if (userId) {
+      const { data: profileExists } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", userId)
+        .single();
+        
+      if (profileExists) {
+        finalUserId = userId;
+      }
+    }
 
+    const { data: recommendedNotesData, error: recommendedError } = await (supabase.rpc as any)(
+      "get_personalized_recommendations",
+      { p_user_id: finalUserId, p_limit: limit }
+    );
+
+    if (recommendedError) {
+      console.warn("[fetchRecommendedNotesAction]", {
+        message: recommendedError?.message ?? String(recommendedError),
+        code: recommendedError?.code,
+        details: recommendedError?.details,
+        hint: recommendedError?.hint
+      });
+      return { success: false, data: [], error: "Recommended notes unavailable" };
+    }
+
+    const notes = ((recommendedNotesData as any[]) || []).map((n: any) => ({
+      id: n.id,
+      title: n.title,
+      description: n.description,
+      semester: n.semester,
+      downloads_count: n.downloads_count,
+      view_count: n.view_count,
+      average_rating: n.average_rating || 0,
+      total_ratings: n.total_ratings || 0,
+      created_at: n.created_at,
+      subjects: {
+        name: n.subject_name,
+        branches: {
+          name: n.branch_name,
+          code: n.branch_code
+        }
+      }
+    }));
+
+    return { success: true, data: notes };
+  } catch (error: any) {
+    console.warn("[fetchRecommendedNotesAction Exception]", {
+      message: error?.message ?? String(error),
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint
+    });
+    return { success: false, data: [], error: "Recommended notes unavailable" };
+  }
+}
+
+/**
+ * Fetches trending notes using the RPC function.
+ */
+export async function fetchTrendingNotesAction(limit = 5) {
+  try {
+    const supabase = createServiceRoleSupabaseClient();
+    
+    const { data: trendingNotesData, error: trendingError } = await (supabase.rpc as any)(
+      "get_trending_notes",
+      { p_limit: limit }
+    );
+
+    if (trendingError) {
+      console.warn("[fetchTrendingNotesAction]", {
+        message: trendingError?.message ?? String(trendingError),
+        code: trendingError?.code,
+        details: trendingError?.details,
+        hint: trendingError?.hint
+      });
+      return { success: false, data: [], error: "Trending notes unavailable" };
+    }
+
+    const notes = ((trendingNotesData as any[]) || []).map((n: any) => ({
+      id: n.id,
+      title: n.title,
+      description: n.description,
+      semester: n.semester,
+      downloads_count: n.downloads_count,
+      view_count: n.view_count,
+      average_rating: n.average_rating || 0,
+      total_ratings: n.total_ratings || 0,
+      created_at: n.created_at,
+      trending_score: n.trending_score || 0,
+      subjects: {
+        name: n.subject_name,
+        branches: {
+          name: n.branch_name,
+          code: n.branch_code
+        }
+      }
+    }));
+
+    return { success: true, data: notes };
+  } catch (error: any) {
+    console.warn("[fetchTrendingNotesAction Exception]", {
+      message: error?.message ?? String(error),
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint
+    });
+    return { success: false, data: [], error: "Trending notes unavailable" };
+  }
+}
+
+/**
+ * Fetches recently viewed notes for the current user.
+ */
+export async function fetchRecentlyViewedNotesAction(limit = 4) {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: true, data: undefined };
+
+    const supabase = createServiceRoleSupabaseClient();
+    
+    // Step 1: Fetch recently viewed note IDs
+    const { data: views, error: viewsError } = await (supabase as any)
+      .from("recently_viewed_notes")
+      .select("note_id, viewed_at")
+      .eq("user_id", userId)
+      .order("viewed_at", { ascending: false })
+      .limit(limit);
+
+    if (viewsError) {
+      console.warn("[fetchRecentlyViewedNotesAction - Views]", {
+        message: viewsError?.message ?? String(viewsError),
+        code: viewsError?.code,
+        details: viewsError?.details,
+        hint: viewsError?.hint
+      });
+      return { success: false, data: [], error: "Recently viewed notes unavailable" };
+    }
+
+    if (!views || views.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    const noteIds = views.map((v: any) => v.note_id);
+
+    // Step 2: Fetch notes details safely
+    const { data: notesData, error: notesError } = await supabase
+      .from("notes")
+      .select(`
+        id,
+        title,
+        description,
+        file_type,
+        semester,
+        average_rating,
+        downloads_count,
+        view_count,
+        status,
+        created_at,
+        profiles(name),
+        subjects!inner(
+          name,
+          branches!inner(
+            name,
+            code
+          )
+        )
+      `)
+      .in("id", noteIds)
+      .eq("status", "approved");
+
+    if (notesError) {
+      console.warn("[fetchRecentlyViewedNotesAction - Notes]", {
+        message: notesError?.message ?? String(notesError),
+        code: notesError?.code,
+        details: notesError?.details,
+        hint: notesError?.hint
+      });
+      return { success: false, data: [], error: "Recently viewed notes unavailable" };
+    }
+
+    // Step 3: Preserve original viewed order
+    const orderedNotesData = [];
+    for (const noteId of noteIds) {
+      const noteData = notesData?.find((n) => n.id === noteId);
+      if (noteData) orderedNotesData.push(noteData);
+    }
+
+    const notes = orderedNotesData.map((n: any) => ({
+      id: n.id,
+      title: n.title,
+      description: n.description,
+      file_type: n.file_type,
+      semester: n.semester,
+      average_rating: n.average_rating,
+      downloads_count: n.downloads_count,
+      view_count: n.view_count,
+      status: n.status,
+      created_at: n.created_at,
+      profiles: n.profiles,
+      subjects: {
+        name: n.subjects.name,
+        branches: {
+          name: n.subjects.branches.name,
+          code: n.subjects.branches.code
+        }
+      }
+    }));
+
+    return { success: true, data: notes };
+  } catch (error: any) {
+    console.warn("[fetchRecentlyViewedNotesAction Exception]", {
+      message: error?.message ?? String(error),
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint
+    });
+    return { success: false, data: [], error: "Recently viewed notes unavailable" };
+  }
+}

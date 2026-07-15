@@ -17,7 +17,8 @@ import {
   Clock,
   ExternalLink,
   BarChart3,
-  Star
+  Star,
+  Trash2
 } from "lucide-react";
 import { 
   Card, 
@@ -26,6 +27,10 @@ import {
   CardHeader, 
   CardTitle 
 } from "@/components/ui/card";
+import {
+  fetchRecentlyViewedNotesAction,
+  clearRecentlyViewedNotesAction,
+} from "@/app/actions/notes";
 import { 
   Tabs, 
   TabsContent, 
@@ -79,15 +84,16 @@ interface Note {
   created_at: string;
 }
 
-
 export default function Dashboard() {
   const { user, isLoaded: isUserLoaded } = useUser();
   const supabase = useSupabase();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
+  const [recentlyViewed, setRecentlyViewed] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isClearingHistory, setIsClearingHistory] = useState(false);
   // Load user data
   useEffect(() => {
     if (!isUserLoaded || !user) return;
@@ -126,6 +132,12 @@ export default function Dashboard() {
         if (favsError) throw favsError;
         setFavorites((favsData as any) || []);
 
+        // Fetch user's recently viewed notes via Server Action
+        const rvRes = await fetchRecentlyViewedNotesAction(10);
+        if (rvRes.success && rvRes.data) {
+          setRecentlyViewed(rvRes.data);
+        }
+
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         console.warn("Error fetching dashboard data:", message);
@@ -148,6 +160,22 @@ export default function Dashboard() {
     note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (note.description && note.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const handleClearHistory = async () => {
+    if (!user || isClearingHistory) return;
+    try {
+      setIsClearingHistory(true);
+      const res = await clearRecentlyViewedNotesAction();
+      if (!res.success) {
+        throw new Error("Failed to clear history");
+      }
+      setRecentlyViewed([]);
+    } catch(e) {
+      console.error("Failed to clear history", e);
+    } finally {
+      setIsClearingHistory(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-7xl mx-auto grid lg:grid-cols-4 gap-8">
@@ -265,11 +293,8 @@ export default function Dashboard() {
               <TabsTrigger value="uploads" className="text-xs px-4 py-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 data-[state=active]:bg-zinc-100 data-[state=active]:text-zinc-950 data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 transition-all font-semibold">
                 My Uploads ({filteredNotes.length})
               </TabsTrigger>
-              <TabsTrigger value="bookmarks" className="text-xs px-4 py-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 data-[state=active]:bg-zinc-100 data-[state=active]:text-zinc-950 data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 transition-all font-semibold">
-                Bookmarked ({favorites.length})
-              </TabsTrigger>
-              <TabsTrigger value="timeline" className="text-xs px-4 py-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 data-[state=active]:bg-zinc-100 data-[state=active]:text-zinc-950 data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 transition-all font-semibold">
-                Activity Logs
+              <TabsTrigger value="recent" className="text-xs px-4 py-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 data-[state=active]:bg-zinc-100 data-[state=active]:text-zinc-950 data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 transition-all font-semibold">
+                Recently Viewed
               </TabsTrigger>
               <TabsTrigger value="stats" className="text-xs px-4 py-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 data-[state=active]:bg-zinc-100 data-[state=active]:text-zinc-950 data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 transition-all font-semibold">
                 Contributor Stats
@@ -334,61 +359,72 @@ export default function Dashboard() {
               </Card>
             </TabsContent>
 
-            {/* Bookmarks Tab */}
-            <TabsContent value="bookmarks" className="flex-grow mt-4">
+            {/* Recently Viewed Tab */}
+            <TabsContent value="recent" className="flex-grow mt-4">
               <Card className="bg-zinc-900/15 border-zinc-800/50 shadow-inner">
                 <CardContent className="p-6">
-                  {favorites.length === 0 ? (
+                  {recentlyViewed.length === 0 ? (
                     <EmptyDashboardState 
-                      title="No bookmarks saved" 
-                      description="Search for class lecture notes or test papers and save them for fast offline access." 
+                      title="No recently viewed notes yet" 
+                      description="Open some notes and they will appear here." 
                       actionLink="/dashboard/browse" 
-                      actionText="Browse Notes Library"
+                      actionText="Browse Library"
                     />
                   ) : (
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      {favorites.map((fav) => (
-                        <div 
-                          key={fav.id}
-                          className="border border-zinc-800/60 bg-zinc-900/35 hover:bg-zinc-900/50 p-5 rounded-xl flex flex-col justify-between gap-4.5 transition-all duration-200"
+                    <div className="flex flex-col gap-4">
+                      <div className="flex justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleClearHistory}
+                          disabled={isClearingHistory}
+                          className="text-zinc-500 hover:text-red-400 hover:bg-red-500/10 text-xs h-8 gap-1.5"
                         >
-                          <div>
-                            <div className="flex justify-between items-start">
-                              <span className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-wide">
-                                PDF Document
-                              </span>
-                              <Bookmark className="h-4 w-4 text-pink-500 fill-pink-500" />
+                          <Trash2 className="h-3.5 w-3.5" />
+                          {isClearingHistory ? "Clearing..." : "Clear Recently Viewed"}
+                        </Button>
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        {recentlyViewed.map((note) => (
+                          <Link 
+                            key={note.id} 
+                            href={`/notes/${note.id}`}
+                            className="block group"
+                          >
+                            <div className="border border-zinc-800/60 bg-zinc-900/35 hover:bg-zinc-900/50 p-5 rounded-xl flex flex-col justify-between gap-4.5 transition-all duration-200 h-full">
+                              <div>
+                                <div className="flex justify-between items-start">
+                                  <span className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-wide">
+                                    {note.subjects?.branches?.name || "Semester " + note.semester} &bull; {note.subjects?.name || "General"}
+                                  </span>
+                                  {note.average_rating ? (
+                                    <span className="flex items-center gap-1 text-xs font-bold text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded">
+                                      <Star className="h-3 w-3 fill-yellow-500" />
+                                      {note.average_rating.toFixed(1)}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <h4 className="font-bold text-sm text-zinc-100 mt-3 group-hover:text-indigo-400 transition-colors line-clamp-1">{note.title}</h4>
+                                <p className="text-zinc-500 text-xs leading-relaxed mt-1.5 line-clamp-2">
+                                  {note.description || "No description provided."}
+                                </p>
+                              </div>
+                              <div className="flex items-center justify-between border-t border-zinc-800/50 pt-3 text-[11px] text-zinc-500">
+                                <span className="flex items-center gap-2">
+                                  <span>{note.downloads_count || 0} dls</span>
+                                  <span>&bull;</span>
+                                  <span className="truncate max-w-[100px]">{note.profiles?.name || "Anonymous"}</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1 font-bold text-zinc-400 group-hover:text-indigo-400 transition-colors">
+                                  Open <ExternalLink className="h-3 w-3" />
+                                </span>
+                              </div>
                             </div>
-                            <h4 className="font-bold text-sm text-zinc-100 mt-3">{fav.notes?.title}</h4>
-                            <p className="text-zinc-500 text-xs leading-relaxed mt-1.5 line-clamp-2">
-                              {fav.notes?.description || "No description provided."}
-                            </p>
-                          </div>
-                          <div className="flex items-center justify-between border-t border-zinc-800/50 pt-3 text-[11px] text-zinc-500">
-                            <span>Semester {fav.notes?.semester} &bull; {fav.notes?.downloads_count} downloads</span>
-                            <Link href={`/dashboard/browse`} className="hover:text-indigo-400 inline-flex items-center gap-1 font-bold">
-                              Open View <ExternalLink className="h-3 w-3" />
-                            </Link>
-                          </div>
-                        </div>
-                      ))}
+                          </Link>
+                        ))}
+                      </div>
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Activity Logs Tab */}
-            <TabsContent value="timeline" className="flex-grow mt-4">
-              <Card className="bg-zinc-900/15 border-zinc-800/50 shadow-inner">
-                <CardContent className="p-6">
-                  {/* Timeline list */}
-                  <div className="relative border-l border-zinc-800 pl-6 ml-3 flex flex-col gap-6.5 py-2">
-                    <div className="flex flex-col items-center justify-center py-10 text-zinc-500 gap-3 ml-[-12px]">
-                      <History className="h-8 w-8 text-zinc-600 animate-spin" />
-                      <p className="text-sm">No activity recorded yet.</p>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

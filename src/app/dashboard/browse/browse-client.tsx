@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -72,7 +73,7 @@ interface NoteRow {
   } | null;
 }
 
-export default function BrowseNotesClient({
+function BrowseNotesContent({
   initialBranches,
   initialBookmarkedIds = [],
 }: {
@@ -80,13 +81,37 @@ export default function BrowseNotesClient({
   initialBookmarkedIds?: string[];
 }) {
   const supabase = useSupabase();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  // URL Sync function
+  const updateUrl = (newParams: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(newParams).forEach(([key, value]) => {
+      if (value === null || value === "" || value === "all" || value === "0") {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    });
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const initialSearch = searchParams.get("q") || "";
+  let initialSort = searchParams.get("sort");
+  if (!initialSort) {
+    initialSort = initialSearch ? "relevance" : "newest";
+  }
+  const validSorts = ["newest", "downloads", "views", "highest_rated", "most_reviewed", "relevance"];
+  if (!validSorts.includes(initialSort)) initialSort = "newest";
 
   // Search & Filters State
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedBranch, setSelectedBranch] = useState("all");
-  const [selectedSemester, setSelectedSemester] = useState("0"); // "0" representing "all"
-  const [selectedSubject, setSelectedSubject] = useState("all");
-  const [sortBy, setSortBy] = useState<"newest" | "downloads" | "views" | "highest_rated" | "most_reviewed">("newest");
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [selectedBranch, setSelectedBranch] = useState(searchParams.get("branch") || "all");
+  const [selectedSemester, setSelectedSemester] = useState(searchParams.get("semester") || "0");
+  const [selectedSubject, setSelectedSubject] = useState(searchParams.get("subject") || "all");
+  const [sortBy, setSortBy] = useState<any>(initialSort);
 
   // Dynamic Subjects List (based on branch/semester selection)
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -95,7 +120,8 @@ export default function BrowseNotesClient({
   // Pagination & Loading States
   const [notes, setNotes] = useState<NoteRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [page, setPage] = useState(1);
+  const initialPage = parseInt(searchParams.get("page") || "1", 10);
+  const [page, setPage] = useState(initialPage > 0 ? initialPage : 1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoadingNotes, setIsLoadingNotes] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
@@ -246,7 +272,7 @@ export default function BrowseNotesClient({
   }, [selectedBranch, selectedSemester, supabase]);
 
   // Main Notes Fetcher
-  const fetchNotes = async (search: string, branch: string, sem: string, sub: string, sort: "newest" | "downloads" | "views" | "highest_rated" | "most_reviewed", currentPage: number) => {
+  const fetchNotes = async (search: string, branch: string, sem: string, sub: string, sort: any, currentPage: number) => {
     try {
       setIsLoadingNotes(true);
       setErrorMsg("");
@@ -290,34 +316,48 @@ export default function BrowseNotesClient({
     setSearchQuery(value);
     setPage(1); // Reset to first page on search
 
+    let newSort = sortBy;
+    if (value && sortBy === "newest") newSort = "relevance";
+    else if (!value && sortBy === "relevance") newSort = "newest";
+    setSortBy(newSort);
+
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
     }
 
     debounceTimeoutRef.current = setTimeout(() => {
-      fetchNotes(value, selectedBranch, selectedSemester, selectedSubject, sortBy, 1);
+      updateUrl({ q: value, sort: newSort, page: "1" });
+      fetchNotes(value, selectedBranch, selectedSemester, selectedSubject, newSort, 1);
     }, 450);
   };
 
   // Handle page resets when filters change
   const handleBranchChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedBranch(e.target.value);
+    const val = e.target.value;
+    setSelectedBranch(val);
     setPage(1);
+    updateUrl({ branch: val, page: "1" });
   };
 
   const handleSemesterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedSemester(e.target.value);
+    const val = e.target.value;
+    setSelectedSemester(val);
     setPage(1);
+    updateUrl({ semester: val, page: "1" });
   };
 
   const handleSubjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedSubject(e.target.value);
+    const val = e.target.value;
+    setSelectedSubject(val);
     setPage(1);
+    updateUrl({ subject: val, page: "1" });
   };
 
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSortBy(e.target.value as "newest" | "downloads" | "views" | "highest_rated" | "most_reviewed");
+    const val = e.target.value;
+    setSortBy(val);
     setPage(1);
+    updateUrl({ sort: val, page: "1" });
   };
 
   // Clean up debounce timeout on unmount
@@ -332,7 +372,10 @@ export default function BrowseNotesClient({
   const handleClearSearch = () => {
     setSearchQuery("");
     setPage(1);
-    fetchNotes("", selectedBranch, selectedSemester, selectedSubject, sortBy, 1);
+    const newSort = sortBy === "relevance" ? "newest" : sortBy;
+    setSortBy(newSort);
+    updateUrl({ q: null, sort: newSort, page: "1" });
+    fetchNotes("", selectedBranch, selectedSemester, selectedSubject, newSort, 1);
   };
 
   const handleResetFilters = () => {
@@ -341,18 +384,12 @@ export default function BrowseNotesClient({
     setSelectedSubject("all");
     setSortBy("newest");
     setPage(1);
+    updateUrl({ branch: null, semester: null, subject: null, sort: "newest", page: "1" });
     fetchNotes(searchQuery, "all", "0", "all", "newest", 1);
   };
 
   return (
     <div className="flex flex-col gap-6">
-      {errorMsg && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl flex items-center gap-3 text-sm font-semibold">
-          <FileWarning className="h-5 w-5 shrink-0" />
-          {errorMsg}
-        </div>
-      )}
-
       {/* Advanced Filter panel */}
       <div className="flex flex-col gap-4 bg-zinc-900/15 border border-zinc-800/40 p-5 rounded-2xl backdrop-blur-md">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -374,6 +411,7 @@ export default function BrowseNotesClient({
               onChange={handleSortChange}
               className="w-full bg-zinc-900/60 border border-zinc-800 text-xs rounded-xl h-11 px-3 text-zinc-300 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 outline-none cursor-pointer"
             >
+              <option value="relevance">Sort by: Relevance</option>
               <option value="newest">Sort by: Newest Uploads</option>
               <option value="downloads">Sort by: Most Downloaded</option>
               <option value="views">Sort by: Most Viewed</option>
@@ -475,6 +513,22 @@ export default function BrowseNotesClient({
             </Card>
           ))}
         </div>
+      ) : errorMsg ? (
+        <Card className="bg-red-500/10 border-red-500/20 text-red-400 backdrop-blur-md">
+          <CardContent className="flex flex-col items-center justify-center py-20 text-center gap-5">
+            <div className="bg-red-500/20 p-4 rounded-full border border-red-500/30 shadow-md">
+              <FileWarning className="h-8 w-8 text-red-400" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <h3 className="font-bold text-xl text-red-300">Database Configuration Error</h3>
+              <p className="text-sm text-red-400 max-w-lg mx-auto">
+                {errorMsg.includes("function public.search_notes") || errorMsg.includes("42883") 
+                  ? "The database is missing required search functions (search_notes). Please run the Phase 7 database migration."
+                  : errorMsg}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       ) : notes.length === 0 ? (
         <Card className="bg-zinc-900/20 border-zinc-800/50 backdrop-blur-md">
           <CardContent className="flex flex-col items-center justify-center py-20 text-center gap-5">
@@ -661,7 +715,11 @@ export default function BrowseNotesClient({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+            onClick={() => {
+              const newPage = Math.max(page - 1, 1);
+              setPage(newPage);
+              updateUrl({ page: String(newPage) });
+            }}
             disabled={page === 1}
             className="border-zinc-800 text-zinc-300 hover:bg-zinc-800/30 h-9 px-3 rounded-xl font-bold gap-1 text-xs"
           >
@@ -677,7 +735,10 @@ export default function BrowseNotesClient({
                   key={pageNumber}
                   variant={isCurrent ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setPage(pageNumber)}
+                  onClick={() => {
+                    setPage(pageNumber);
+                    updateUrl({ page: String(pageNumber) });
+                  }}
                   className={`h-9 w-9 rounded-xl font-bold text-xs ${
                     isCurrent
                       ? "bg-indigo-600 hover:bg-indigo-500 text-white"
@@ -693,7 +754,11 @@ export default function BrowseNotesClient({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+            onClick={() => {
+              const newPage = Math.min(page + 1, totalPages);
+              setPage(newPage);
+              updateUrl({ page: String(newPage) });
+            }}
             disabled={page === totalPages}
             className="border-zinc-800 text-zinc-300 hover:bg-zinc-800/30 h-9 px-3 rounded-xl font-bold gap-1 text-xs"
           >
@@ -702,5 +767,13 @@ export default function BrowseNotesClient({
         </div>
       )}
     </div>
+  );
+}
+
+export default function BrowseNotesClient(props: { initialBranches: Branch[], initialBookmarkedIds?: string[] }) {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-zinc-500 animate-pulse flex items-center justify-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> Loading library...</div>}>
+      <BrowseNotesContent {...props} />
+    </Suspense>
   );
 }
