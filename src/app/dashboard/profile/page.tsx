@@ -34,7 +34,7 @@ export default function ProfilePage() {
         .select("*")
         .eq("id", user.id)
         .single()
-        .then(({ data }) => {
+        .then(({ data }: any) => {
           if (data) {
             setRole(data.role);
             setCollege(data.college || "");

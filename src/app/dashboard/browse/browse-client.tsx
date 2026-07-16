@@ -257,7 +257,7 @@ function BrowseNotesContent({
         if (data) {
           setSubjects(data);
           // If selectedSubject isn't in the new list, reset it to "all"
-          if (!data.some((s) => s.id === selectedSubject)) {
+          if (!data.some((s: any) => s.id === selectedSubject)) {
             setSelectedSubject("all");
           }
         }

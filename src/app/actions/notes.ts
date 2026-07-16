@@ -746,13 +746,13 @@ export async function fetchRecommendedNotesAction(limit = 6) {
     );
 
     if (recommendedError) {
-      console.warn("[fetchRecommendedNotesAction]", {
+      console.warn("[fetchRecommendedNotesAction Database Error]", {
         message: recommendedError?.message ?? String(recommendedError),
         code: recommendedError?.code,
         details: recommendedError?.details,
         hint: recommendedError?.hint
       });
-      return { success: false, data: [], error: "Recommended notes unavailable" };
+      return { success: true, data: [] };
     }
 
     const notes = ((recommendedNotesData as any[]) || []).map((n: any) => ({
@@ -782,7 +782,7 @@ export async function fetchRecommendedNotesAction(limit = 6) {
       details: error?.details,
       hint: error?.hint
     });
-    return { success: false, data: [], error: "Recommended notes unavailable" };
+    return { success: true, data: [] };
   }
 }
 

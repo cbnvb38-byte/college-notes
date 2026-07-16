@@ -27,6 +27,7 @@ import { useAuth } from "@clerk/nextjs";
 import { submitRating, removeRating } from "@/app/actions/ratings";
 import { ReviewsSection } from "./reviews-section";
 import { reportNote } from "@/app/actions/reports";
+import { StudyCopilotPanel } from "@/components/notes/study-copilot-panel";
 
 interface RelatedNote {
   id: string;
@@ -536,6 +537,9 @@ export default function NoteDetailsClient({
           </Card>
         </div>
       </div>
+
+      {/* Study Copilot */}
+      <StudyCopilotPanel noteId={note.id} />
 
       {/* Reviews Section */}
       <ReviewsSection 

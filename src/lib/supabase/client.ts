@@ -1,9 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 import { Database } from "./types";
 
+let supabaseInstance: any = null;
+let currentGetToken: ((options?: { template?: string }) => Promise<string | null>) | null = null;
+
 export const createClerkSupabaseClient = (
   getToken: (options?: { template?: string }) => Promise<string | null>
 ) => {
+  currentGetToken = getToken;
+
+  if (supabaseInstance) {
+    return supabaseInstance;
+  }
+
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     throw new Error("NEXT_PUBLIC_SUPABASE_URL is missing.");
   }
@@ -11,14 +20,13 @@ export const createClerkSupabaseClient = (
     throw new Error("NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.");
   }
 
-  return createClient<Database>(
+  supabaseInstance = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       global: {
         fetch: async (url, options = {}) => {
-          // Fetch default Clerk token for native Third-Party Auth integration
-          const token = await getToken();
+          const token = currentGetToken ? await currentGetToken() : null;
           const headers = new Headers(options.headers);
           if (token) {
             headers.set("Authorization", `Bearer ${token}`);
@@ -28,4 +36,6 @@ export const createClerkSupabaseClient = (
       },
     }
   );
+
+  return supabaseInstance;
 };

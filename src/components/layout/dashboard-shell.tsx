@@ -20,7 +20,8 @@ import {
   LogOut,
   ChevronRight,
   GraduationCap,
-  FileUp
+  FileUp,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,7 @@ export function DashboardShell({ children, userRole = "student" }: DashboardShel
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Upload Notes", href: "/dashboard/upload", icon: UploadCloud },
     { name: "My Uploads", href: "/dashboard/my-uploads", icon: FileUp },
+    { name: "Study Copilot", href: "/dashboard/study-copilot", icon: Sparkles },
     { name: "Browse Notes", href: "/dashboard/browse", icon: Search },
     { name: "Bookmarks", href: "/dashboard/bookmarks", icon: Bookmark },
   ];
