@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { parseSummarySections, getGenerationTypeLabel, getCopyableResultText } from "@/lib/ai/result-formatting";
 
+import { StudyMarkdownRenderer } from "./study-markdown-renderer";
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface GeneratedResultCardProps {
@@ -28,64 +30,6 @@ interface GeneratedResultCardProps {
   onHide?: () => void;
   /** Compact mode: show preview only, with an "Open" toggle */
   compact?: boolean;
-}
-
-/** Render a single line as JSX bullet/numbered or plain */
-function renderLine(line: string, idx: number) {
-  const bulletMatch = line.match(/^[-*•]\s+(.+)$/);
-  const numberedMatch = line.match(/^\d+[.)]\s+(.+)$/);
-  const boldMatch = line.match(/^\*\*(.+?)\*\*[:\s]*(.*)$/);
-
-  if (bulletMatch) {
-    return (
-      <li key={idx} className="flex gap-2 items-start">
-        <span className="text-indigo-400 mt-0.5 shrink-0">•</span>
-        <span className="text-zinc-300 leading-relaxed text-sm">{bulletMatch[1].replace(/\*\*/g, "")}</span>
-      </li>
-    );
-  }
-  if (numberedMatch) {
-    return (
-      <li key={idx} className="flex gap-2 items-start">
-        <span className="text-indigo-400 font-bold shrink-0 text-xs mt-0.5">{line.match(/^\d+/)?.[0]}.</span>
-        <span className="text-zinc-300 leading-relaxed text-sm">{numberedMatch[1].replace(/\*\*/g, "")}</span>
-      </li>
-    );
-  }
-  if (boldMatch) {
-    return (
-      <p key={idx} className="text-sm text-zinc-200 leading-relaxed">
-        <span className="font-bold text-zinc-100">{boldMatch[1]}: </span>
-        {boldMatch[2]}
-      </p>
-    );
-  }
-  if (line.trim() === "") return null;
-  return (
-    <p key={idx} className="text-sm text-zinc-300 leading-relaxed">
-      {line.replace(/\*\*/g, "")}
-    </p>
-  );
-}
-
-/** Render the content of one section into clean JSX */
-function SectionContent({ content }: { content: string }) {
-  const lines = content.split("\n");
-  const hasBullets = lines.some((l) => /^[-*•]\s/.test(l) || /^\d+[.)]\s/.test(l));
-
-  if (hasBullets) {
-    return (
-      <ul className="flex flex-col gap-1.5 mt-2 pl-0 list-none">
-        {lines.map((l, i) => renderLine(l.trim(), i))}
-      </ul>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-2 mt-2">
-      {lines.map((l, i) => renderLine(l.trim(), i))}
-    </div>
-  );
 }
 
 // ─── Section Icon Map ─────────────────────────────────────────────────────────
@@ -264,7 +208,7 @@ export function GeneratedResultCard({
                   </div>
                   <h3 className={`text-sm font-bold ${headingColor}`}>{section.heading}</h3>
                 </div>
-                <SectionContent content={section.content} />
+                <StudyMarkdownRenderer content={section.content} />
               </div>
             );
           })}

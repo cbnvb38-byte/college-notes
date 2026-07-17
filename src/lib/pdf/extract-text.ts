@@ -18,6 +18,7 @@ export interface PDFExtractionResult {
   text: string;
   bufferSize: number;
   firstBytes: string;
+  buffer: Buffer;
 }
 
 /**
@@ -76,13 +77,5 @@ export async function extractTextFromPDF(filePath: string): Promise<PDFExtractio
 
   devLog("Extracted text length:", text.length, "characters");
 
-  // 6. Guard against scanned / image-only PDFs
-  if (text.length < 100) {
-    devLog("Text too short — likely scanned/image-based PDF");
-    throw new Error(
-      "This PDF appears to be scanned or does not contain enough selectable text for Smart Summary."
-    );
-  }
-
-  return { text, bufferSize, firstBytes };
+  return { text, bufferSize, firstBytes, buffer };
 }

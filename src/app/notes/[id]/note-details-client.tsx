@@ -29,7 +29,7 @@ import { useAuth } from "@clerk/nextjs";
 import { submitRating, removeRating } from "@/app/actions/ratings";
 import { ReviewsSection } from "./reviews-section";
 import { reportNote } from "@/app/actions/reports";
-import { generateStudyMaterialAction } from "@/app/actions/copilot";
+import { generateStudyMaterialAction, generateSummaryWithDocumentFallback } from "@/app/actions/copilot";
 import { STUDY_TOOLS } from "@/lib/ai/study-tools";
 import { GenerationType } from "@/lib/ai/types";
 import { Check } from "lucide-react";
@@ -107,9 +107,12 @@ export default function NoteDetailsClient({
   const { userId } = useAuth();
   const isAuthor = userId === initialNote.author_id;
   const [showMoreTools, setShowMoreTools] = useState(false);
+
+  // Note generation state
   const [isGenerating, setIsGenerating] = useState<GenerationType | null>(null);
-  const [generatedResult, setGeneratedResult] = useState<{ type: GenerationType, text: string, id: string } | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generatedResult, setGeneratedResult] = useState<{ type: GenerationType, text: string, id: string } | null>(null);
+  const [showScannedConfirmation, setShowScannedConfirmation] = useState(false);
 
   // Counters & Interactive States
   const [note, setNote] = useState<NoteDetails>(initialNote);
@@ -293,11 +296,20 @@ export default function NoteDetailsClient({
   };
 
   const handleGenerate = async (generationType: GenerationType) => {
-    if (isGenerating) return;
+    if (!userId) {
+      toast.error("Please sign in to generate study materials.");
+      return;
+    }
     
+    // For now, only summary is enabled.
+    if (generationType !== "summary") {
+      toast.info("This feature will be enabled in a later phase.");
+      return;
+    }
+
     setIsGenerating(generationType);
-    setGeneratedResult(null);
     setGenerateError(null);
+    setShowScannedConfirmation(false);
     
     try {
       const res = await generateStudyMaterialAction(note.id, generationType);
@@ -305,6 +317,40 @@ export default function NoteDetailsClient({
       if (res.success && res.data) {
         toast.success(res.message || "Generated successfully.");
         setGeneratedResult({ type: generationType, text: res.data.resultText, id: res.data.id });
+      } else {
+        if (res.error?.code === "SCANNED_PDF_CONFIRM_REQUIRED") {
+          setShowScannedConfirmation(true);
+        } else {
+          const errorMsg = res.error?.message || "Failed to generate study material.";
+          setGenerateError(errorMsg);
+          toast.error(errorMsg);
+        }
+      }
+    } catch (error: any) {
+      const errorMsg = error.message || "An unexpected error occurred.";
+      setGenerateError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setIsGenerating(null);
+    }
+  };
+
+  const handleDocumentFallback = async () => {
+    if (!userId) {
+      toast.error("Please sign in to generate study materials.");
+      return;
+    }
+    
+    setIsGenerating("summary");
+    setGenerateError(null);
+    setShowScannedConfirmation(false);
+    
+    try {
+      const res = await generateSummaryWithDocumentFallback(note.id);
+      
+      if (res.success && res.data) {
+        toast.success(res.message || "Generated successfully.");
+        setGeneratedResult({ type: "summary", text: res.data.resultText, id: res.data.id });
       } else {
         const errorMsg = res.error?.message || "Failed to generate study material.";
         setGenerateError(errorMsg);
@@ -624,7 +670,11 @@ export default function NoteDetailsClient({
                       <span className="flex items-center justify-between w-full">
                         <span className="flex items-center gap-2 font-bold text-xs text-zinc-100">
                           {isGenerating === tool.generationType ? <Loader2 className="h-4 w-4 text-indigo-400 animate-spin" /> : <Icon className="h-4 w-4 text-indigo-400" />} 
-                          {tool.title}
+                          {isGenerating === tool.generationType && showScannedConfirmation === false ? (
+                            "Generating Smart Summary..."
+                          ) : (
+                            tool.title
+                          )}
                         </span>
                         <span className="text-[9px] bg-zinc-800/80 text-zinc-400 px-1.5 py-0.5 rounded border border-zinc-700 font-bold uppercase tracking-wider">
                           {tool.status}
@@ -674,11 +724,53 @@ export default function NoteDetailsClient({
                 )}
               </div>
               
+              {/* Scanned PDF Confirmation */}
+              {showScannedConfirmation && !generatedResult && (
+                <div className="flex flex-col gap-3 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-xl mt-2 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-indigo-500/20 p-2 rounded-lg shrink-0">
+                      <Sparkles className="h-5 w-5 text-indigo-400" />
+                    </div>
+                    <div className="flex flex-col">
+                      <h4 className="text-sm font-bold text-zinc-100">Scanned PDF detected</h4>
+                      <p className="text-xs text-zinc-300 leading-relaxed mt-1">
+                        This PDF does not contain enough selectable text. Gemini document reading can try to read the PDF and generate a Smart Summary. This may use extra API quota.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2 ml-11">
+                    <Button
+                      onClick={handleDocumentFallback}
+                      disabled={isGenerating !== null}
+                      size="sm"
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold"
+                    >
+                      {isGenerating !== null ? (
+                        <><Loader2 className="h-3 w-3 animate-spin mr-1.5" /> Reading scanned PDF...</>
+                      ) : (
+                        "Use Gemini Document Reading"
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => setShowScannedConfirmation(false)}
+                      disabled={isGenerating !== null}
+                      size="sm"
+                      variant="ghost"
+                      className="text-zinc-400 hover:text-zinc-200"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Inline Error Display */}
               {generateError && !generatedResult && (
-                <div className="flex items-start gap-2 p-3 bg-red-500/8 border border-red-500/20 rounded-lg mt-1 animate-in fade-in">
-                  <FileWarning className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-red-300 leading-relaxed">{generateError}</p>
+                <div className="flex flex-col gap-3 p-3 bg-red-500/8 border border-red-500/20 rounded-xl mt-2 animate-in fade-in">
+                  <div className="flex items-start gap-2">
+                    <FileWarning className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-red-300 leading-relaxed">{generateError}</p>
+                  </div>
                 </div>
               )}
 

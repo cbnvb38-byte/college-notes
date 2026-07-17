@@ -3,7 +3,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { GenerationType } from "@/lib/ai/types";
 import { createClient } from "@supabase/supabase-js";
-import { extractTextFromPDF } from "@/lib/pdf/extract-text";
+import { getStudyContentForNote } from "@/lib/ai/document-content";
 import { GoogleGenAI } from "@google/genai";
 
 const isDev = process.env.NODE_ENV === "development";
@@ -67,61 +67,18 @@ export async function generateStudyMaterialAction(
       return { success: false, error: { message: "PDF file path is missing for this note." } };
     }
 
-    // 3. Cache Check & Text Extraction
-    let extractedText = "";
-
-    const { data: cacheData } = await supabase
-      .from("note_text_cache")
-      .select("extracted_text")
-      .eq("note_id", noteId)
-      .single();
-
-    const cacheExists = !!cacheData;
-    const cacheLength = cacheData?.extracted_text?.length ?? 0;
-    devLog("Cache exists:", cacheExists);
-    devLog("Cached text length:", cacheLength);
-
-    // Use cache only if it has meaningful text (>= 100 chars).
-    // Otherwise (missing cache, NULL value, or too short), re-extract from PDF.
-    if (cacheExists && cacheData.extracted_text && cacheLength >= 100) {
-      devLog("Using cached text.");
-      extractedText = cacheData.extracted_text;
-    } else {
-      if (cacheExists && cacheLength < 100) {
-        devLog("Cache exists but text is too short — ignoring bad cache, re-extracting from PDF.");
-      } else {
-        devLog("No cache found — extracting from PDF.");
-      }
-
-      try {
-        const extracted = await extractTextFromPDF(note.file_path);
-        extractedText = extracted.text;
-        devLog("Fresh extraction buffer size:", extracted.bufferSize, "bytes");
-        devLog("Fresh extraction first bytes:", JSON.stringify(extracted.firstBytes));
-        devLog("Fresh extracted text length:", extractedText.length);
-
-        // Upsert to cache (overwrite bad short cache)
-        await supabase.from("note_text_cache").upsert({
-          note_id: noteId,
-          extracted_text: extractedText,
-        });
-        devLog("Text cached (upserted).");
-      } catch (extError: any) {
-        devLog("Extraction failed:", extError.message);
-        return { success: false, error: { message: extError.message } };
-      }
-    }
-
-    // Final guard — do not call Gemini on insufficient text
-    if (!extractedText || extractedText.length < 100) {
+    // 3. Reusable Text Extraction Pipeline
+    const contentResult = await getStudyContentForNote(noteId, note.file_path);
+    
+    if (contentResult.needsDocumentFallback) {
+      // Pass this directly to the frontend so it knows to show the fallback UI
       return {
         success: false,
-        error: {
-          message:
-            "This PDF appears to be scanned or does not contain enough selectable text for Smart Summary.",
-        },
+        error: { message: contentResult.message, code: contentResult.code }
       };
     }
+    
+    const extractedText = contentResult.contentMarkdown;
 
     // 4. Gemini Configuration & Invocation
     const apiKey = process.env.GEMINI_API_KEY;
@@ -143,6 +100,14 @@ export async function generateStudyMaterialAction(
 Your task is to create a clean, comprehensive study summary of the provided text.
 Use ONLY the information in the provided text. Do not add outside facts.
 
+Formatting Rules:
+- Use Markdown headings.
+- Use bullet points.
+- Wrap inline math in $...$.
+- Wrap display equations in $$...$$.
+- Do not escape LaTeX unnecessarily.
+- Do not output raw JSON unless structured JSON is requested.
+
 Format your response in Markdown with the following specific sections exactly:
 ## Quick Summary
 ## Detailed Summary
@@ -152,7 +117,7 @@ Format your response in Markdown with the following specific sections exactly:
 
 Provided Text:
 """
-${extractedText.substring(0, 30000)}
+${extractedText}
 """`;
 
     let resultText = "";
@@ -208,9 +173,8 @@ ${extractedText.substring(0, 30000)}
 
     devLog("ai_generations row inserted:", genRow.id);
 
-    // 6. Increment Usage (only after successful Gemini + DB save)
-    const monthKey = new Date().toISOString().slice(0, 7) + "-01"; // e.g. "2026-07-01"
-
+    // 6. Increment Usage
+    const monthKey = new Date().toISOString().slice(0, 7) + "-01";
     const { data: usageData } = await supabase
       .from("ai_usage")
       .select("id, generations_count")
@@ -231,7 +195,6 @@ ${extractedText.substring(0, 30000)}
       });
     }
 
-    devLog("ai_usage incremented for month:", monthKey);
     devLog("------- Smart Summary End -------");
 
     return {
@@ -240,10 +203,176 @@ ${extractedText.substring(0, 30000)}
         id: genRow.id,
         resultText,
       },
-      message: "Saved to Study Copilot history",
+      message: "Summary generated and saved to Study Copilot.",
     };
   } catch (error: any) {
     console.error("[Study Copilot] Unexpected Error:", error);
     return { success: false, error: { message: "An unexpected error occurred." } };
+  }
+}
+
+export async function generateSummaryWithDocumentFallback(noteId: string) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return { success: false, error: { message: "Unauthorized." } };
+    }
+
+    if (!noteId) {
+      return { success: false, error: { message: "Note ID is required." } };
+    }
+
+    const { data: note, error: noteError } = await supabase
+      .from("notes")
+      .select("id, title, status, file_path")
+      .eq("id", noteId)
+      .single();
+
+    if (noteError || !note) {
+      return { success: false, error: { message: "Note not found." } };
+    }
+
+    if (note.status !== "approved") {
+      return { success: false, error: { message: "Only approved notes can be analyzed." } };
+    }
+
+    if (!note.file_path) {
+      return { success: false, error: { message: "PDF file path is missing for this note." } };
+    }
+
+    devLog("------- Document Fallback Summary Start -------");
+    
+    // Download PDF from storage
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from("notes")
+      .download(note.file_path);
+
+    if (downloadError || !fileData) {
+      devLog("Failed to download PDF for fallback:", downloadError);
+      return { success: false, error: { message: "Failed to read the PDF document." } };
+    }
+
+    const arrayBuffer = await fileData.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString('base64');
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return {
+        success: false,
+        error: { message: "Gemini API key is not configured." },
+      };
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+    const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+    const prompt = `You are Study Copilot. Read the uploaded PDF document. It may be scanned or image-based. Use document understanding/OCR to extract the readable study content. Create a Smart Summary using only the document content. Do not add outside facts.
+
+Formatting Rules:
+- Use Markdown headings.
+- Use bullet points.
+- Wrap inline math in $...$.
+- Wrap display equations in $$...$$.
+- Do not escape LaTeX unnecessarily.
+- Do not output raw JSON unless structured JSON is requested.
+
+Return these sections:
+## Quick Summary
+## Detailed Summary
+## Key Concepts
+## Important Exam Points
+## Revision Tip
+
+If the document is unreadable, blurry, or does not contain enough study content, say clearly that the document could not be read.`;
+
+    devLog("Calling Gemini with PDF inlineData...");
+    let resultText = "";
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
+          {
+            inlineData: {
+              mimeType: "application/pdf",
+              data: base64Data,
+            },
+          },
+          prompt
+        ],
+      });
+
+      resultText = response.text || "";
+      if (!resultText) {
+        return { success: false, error: { message: "Gemini returned an empty response." } };
+      }
+      
+      // If model returned the fallback string, throw our own error
+      if (resultText.toLowerCase().includes("could not be read")) {
+        return {
+          success: false,
+          error: { message: "This scanned PDF could not be read clearly. Please upload a clearer scan or a text-based PDF." }
+        };
+      }
+      
+    } catch (genError: any) {
+      console.error("[Study Copilot] Gemini Fallback Error:", genError);
+      return {
+        success: false,
+        error: { message: "Failed to generate summary from AI provider using document reading." },
+      };
+    }
+
+    // Save success result
+    const { data: genRow, error: genError } = await supabase
+      .from("ai_generations")
+      .insert({
+        user_id: userId,
+        note_id: noteId,
+        generation_type: "summary",
+        status: "completed",
+        result_text: resultText,
+      })
+      .select("id")
+      .single();
+
+    if (genError) {
+      return { success: false, error: { message: "Failed to save generation result." } };
+    }
+
+    // Increment Usage
+    const monthKey = new Date().toISOString().slice(0, 7) + "-01";
+    const { data: usageData } = await supabase
+      .from("ai_usage")
+      .select("id, generations_count")
+      .eq("user_id", userId)
+      .eq("month", monthKey)
+      .single();
+
+    if (usageData) {
+      await supabase
+        .from("ai_usage")
+        .update({ generations_count: usageData.generations_count + 1 })
+        .eq("id", usageData.id);
+    } else {
+      await supabase.from("ai_usage").insert({
+        user_id: userId,
+        month: monthKey,
+        generations_count: 1,
+      });
+    }
+
+    devLog("------- Document Fallback Summary End -------");
+
+    return {
+      success: true,
+      data: {
+        id: genRow.id,
+        resultText,
+      },
+      message: "Summary generated and saved to Study Copilot.",
+    };
+  } catch (error: any) {
+    console.error("[Study Copilot] Fallback Error:", error);
+    return { success: false, error: { message: "An unexpected error occurred during document reading." } };
   }
 }
