@@ -32,8 +32,8 @@ import { reportNote } from "@/app/actions/reports";
 import { generateStudyMaterialAction } from "@/app/actions/copilot";
 import { STUDY_TOOLS } from "@/lib/ai/study-tools";
 import { GenerationType } from "@/lib/ai/types";
-import { GeneratedResultCard } from "@/components/study-copilot/generated-result-card";
 import { Check } from "lucide-react";
+import { CopyResultButton } from "@/components/study-copilot/copy-result-button";
 interface RelatedNote {
   id: string;
   title: string;
@@ -107,7 +107,7 @@ export default function NoteDetailsClient({
   const isAuthor = userId === initialNote.author_id;
   const [showMoreTools, setShowMoreTools] = useState(false);
   const [isGenerating, setIsGenerating] = useState<GenerationType | null>(null);
-  const [generatedResult, setGeneratedResult] = useState<{ type: GenerationType, text: string } | null>(null);
+  const [generatedResult, setGeneratedResult] = useState<{ type: GenerationType, text: string, id: string } | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
   // Counters & Interactive States
@@ -303,7 +303,7 @@ export default function NoteDetailsClient({
       
       if (res.success && res.data) {
         toast.success(res.message || "Generated successfully.");
-        setGeneratedResult({ type: generationType, text: res.data.resultText });
+        setGeneratedResult({ type: generationType, text: res.data.resultText, id: res.data.id });
       } else {
         const errorMsg = res.error?.message || "Failed to generate study material.";
         setGenerateError(errorMsg);
@@ -681,15 +681,29 @@ export default function NoteDetailsClient({
                 </div>
               )}
 
-              {/* Compact success state in panel — full result is shown below the main grid */}
+              {/* Compact success state — links to reader page, no inline expansion */}
               {generatedResult && (
-                <div className="flex items-start gap-2.5 p-3 bg-emerald-500/8 border border-emerald-500/20 rounded-lg mt-1 animate-in fade-in">
-                  <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-2 p-3 bg-emerald-500/8 border border-emerald-500/20 rounded-lg mt-1 animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                     <p className="text-[11px] text-emerald-300 font-semibold leading-snug">
                       Summary saved to Study Copilot history.
                     </p>
-                    <p className="text-[10px] text-zinc-500">Scroll down to view the full result.</p>
+                  </div>
+                  <div className="flex gap-2 pl-5">
+                    <Link
+                      href={`/dashboard/study-copilot/${generatedResult.id}`}
+                      className="text-[11px] font-bold text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/15 px-2.5 py-1 rounded-lg transition-all"
+                    >
+                      Open Reader →
+                    </Link>
+                    <CopyResultButton text={generatedResult.text} />
+                    <Link
+                      href="/dashboard/study-copilot"
+                      className="text-[11px] font-semibold text-zinc-500 hover:text-zinc-300 border border-zinc-700/50 bg-zinc-800/40 hover:bg-zinc-800 px-2.5 py-1 rounded-lg transition-all"
+                    >
+                      View in Copilot
+                    </Link>
                   </div>
                 </div>
               )}
@@ -698,20 +712,6 @@ export default function NoteDetailsClient({
           </Card>
         </div>
       </div>
-
-      {/* ─── Wide Generated Result Card ────────────────────────────────────────── */}
-      {/* Placed OUTSIDE the narrow side panel — uses full page width */}
-      {generatedResult && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <GeneratedResultCard
-            resultText={generatedResult.text}
-            generationType={generatedResult.type}
-            noteTitle={note.title}
-            createdAt={new Date().toISOString()}
-            onHide={() => setGeneratedResult(null)}
-          />
-        </div>
-      )}
 
       {/* Reviews Section */}
       <ReviewsSection 

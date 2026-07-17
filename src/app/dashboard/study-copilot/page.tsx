@@ -80,18 +80,60 @@ export default async function StudyCopilotPage() {
             </p>
           </div>
 
-          <div className="bg-zinc-900/30 border border-zinc-800/60 backdrop-blur-md rounded-2xl p-5 flex flex-col gap-3 shrink-0 w-full md:w-64">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-              <span className="text-xs font-medium text-zinc-300">Built for uploaded notes</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-              <span className="text-xs font-medium text-zinc-300">Source-grounded study tools</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-              <span className="text-xs font-medium text-zinc-300">Saved study material history</span>
+          {/* 3D Hero Visual */}
+          <div className="relative shrink-0 w-full md:w-[340px] h-[240px] flex items-center justify-center pointer-events-none mt-8 md:mt-0">
+            <div 
+              className="relative w-full h-full flex items-center justify-center transform-gpu"
+              style={{ perspective: "1000px" }}
+            >
+              {/* Note Card (Bottom) */}
+              <div 
+                className="absolute w-48 h-64 bg-zinc-900/80 border border-zinc-700/50 rounded-2xl shadow-2xl backdrop-blur-md flex flex-col p-4 transition-transform duration-1000"
+                style={{ transform: "rotateX(20deg) rotateY(-20deg) rotateZ(-5deg) translateZ(-60px) translateX(20px)", opacity: 0.5 }}
+              >
+                <div className="h-2 w-1/3 bg-zinc-700 rounded-full mb-3" />
+                <div className="h-1.5 w-full bg-zinc-800 rounded-full mb-2" />
+                <div className="h-1.5 w-4/5 bg-zinc-800 rounded-full mb-2" />
+                <div className="h-1.5 w-full bg-zinc-800 rounded-full mb-2" />
+              </div>
+
+              {/* Glowing Summary Card (Middle) */}
+              <div 
+                className="absolute w-52 h-64 bg-zinc-950 border border-indigo-500/30 rounded-2xl shadow-[0_0_40px_rgba(99,102,241,0.2)] backdrop-blur-xl flex flex-col p-5 transition-transform duration-1000"
+                style={{ transform: "rotateX(15deg) rotateY(-15deg) rotateZ(0deg) translateZ(0px)" }}
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <FileText className="h-5 w-5 text-indigo-400" />
+                  <div className="h-2.5 w-20 bg-indigo-500/20 rounded-full" />
+                </div>
+                <div className="flex-1 flex flex-col gap-2">
+                  <div className="h-1.5 w-full bg-zinc-800 rounded-full" />
+                  <div className="h-1.5 w-11/12 bg-zinc-800 rounded-full" />
+                  <div className="h-1.5 w-full bg-zinc-800 rounded-full" />
+                  <div className="h-1.5 w-4/5 bg-zinc-800 rounded-full" />
+                </div>
+                <div className="absolute -bottom-3 -right-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-lg backdrop-blur-md">
+                  <CheckCircle2 className="h-3 w-3" /> Saved
+                </div>
+              </div>
+
+              {/* Quiz Bubble (Top Right) */}
+              <div 
+                className="absolute bg-zinc-900/90 border border-violet-500/30 rounded-xl shadow-xl backdrop-blur-md p-3 flex items-center gap-2 transition-transform duration-1000"
+                style={{ transform: "rotateX(10deg) rotateY(-10deg) translateZ(40px) translateY(-80px) translateX(90px)" }}
+              >
+                <BookOpen className="h-4 w-4 text-violet-400" />
+                <span className="text-[10px] font-bold text-zinc-300">Quiz Gen</span>
+              </div>
+
+              {/* Flashcards Stack (Top Left) */}
+              <div 
+                className="absolute w-24 h-16 bg-zinc-900/90 border border-zinc-700/50 rounded-lg shadow-xl backdrop-blur-md p-2 flex flex-col items-center justify-center transition-transform duration-1000"
+                style={{ transform: "rotateX(30deg) rotateY(10deg) rotateZ(-10deg) translateZ(30px) translateY(70px) translateX(-100px)" }}
+              >
+                <Library className="h-4 w-4 text-zinc-500 mb-1" />
+                <span className="text-[9px] font-bold text-zinc-500 uppercase">Cards</span>
+              </div>
             </div>
           </div>
         </div>
@@ -173,6 +215,46 @@ export default async function StudyCopilotPage() {
                 </Card>
               );
             })}
+          </div>
+        </div>
+
+        {/* ── B.5 Study Flow Section ── */}
+        <div className="flex flex-col gap-4 mt-2">
+          <div className="flex items-center gap-2 px-1">
+            <Activity className="h-5 w-5 text-indigo-400" />
+            <h2 className="text-xl font-bold text-zinc-100 tracking-tight">AI Study Flow</h2>
+          </div>
+          <div className="bg-zinc-900/30 border border-zinc-800/60 backdrop-blur-md rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 overflow-hidden relative">
+            {/* Connecting Line */}
+            <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-0.5 bg-zinc-800/80 hidden md:block z-0" />
+            
+            {/* Step 1 */}
+            <div className="relative z-10 flex flex-col items-center text-center gap-2 bg-zinc-950 px-4 py-3 rounded-xl border border-zinc-800/80 w-full md:w-1/4 shadow-lg shadow-black/20">
+              <div className="h-8 w-8 bg-zinc-900 border border-zinc-700 text-zinc-400 rounded-full flex items-center justify-center font-bold text-xs mb-1">1</div>
+              <span className="text-xs font-bold text-zinc-200">Upload Note</span>
+              <span className="text-[10px] text-zinc-500">PDF Document</span>
+            </div>
+            
+            {/* Step 2 */}
+            <div className="relative z-10 flex flex-col items-center text-center gap-2 bg-zinc-950 px-4 py-3 rounded-xl border border-indigo-500/30 w-full md:w-1/4 shadow-[0_0_20px_rgba(99,102,241,0.1)]">
+              <div className="h-8 w-8 bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 rounded-full flex items-center justify-center font-bold text-xs mb-1 shadow-[0_0_15px_rgba(99,102,241,0.2)]">2</div>
+              <span className="text-xs font-bold text-indigo-100">Smart Summary</span>
+              <span className="text-[10px] text-indigo-300/70">Understand Core</span>
+            </div>
+
+            {/* Step 3 */}
+            <div className="relative z-10 flex flex-col items-center text-center gap-2 bg-zinc-950 px-4 py-3 rounded-xl border border-zinc-800/80 w-full md:w-1/4 shadow-lg shadow-black/20 opacity-80">
+              <div className="h-8 w-8 bg-zinc-900 border border-zinc-700 text-zinc-400 rounded-full flex items-center justify-center font-bold text-xs mb-1">3</div>
+              <span className="text-xs font-bold text-zinc-300">Practice Quiz</span>
+              <span className="text-[10px] text-zinc-500">Test Knowledge</span>
+            </div>
+
+            {/* Step 4 */}
+            <div className="relative z-10 flex flex-col items-center text-center gap-2 bg-zinc-950 px-4 py-3 rounded-xl border border-zinc-800/80 w-full md:w-1/4 shadow-lg shadow-black/20 opacity-60">
+              <div className="h-8 w-8 bg-zinc-900 border border-zinc-700 text-zinc-400 rounded-full flex items-center justify-center font-bold text-xs mb-1">4</div>
+              <span className="text-xs font-bold text-zinc-400">Revise Weak Topics</span>
+              <span className="text-[10px] text-zinc-600">Master Concepts</span>
+            </div>
           </div>
         </div>
 
