@@ -17,6 +17,8 @@ import {
   ExternalLink,
   BookOpen,
   Bookmark,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +29,7 @@ import { useAuth } from "@clerk/nextjs";
 import { submitRating, removeRating } from "@/app/actions/ratings";
 import { ReviewsSection } from "./reviews-section";
 import { reportNote } from "@/app/actions/reports";
-
+import { STUDY_TOOLS } from "@/lib/ai/study-tools";
 interface RelatedNote {
   id: string;
   title: string;
@@ -98,6 +100,7 @@ export default function NoteDetailsClient({
 }) {
   const { userId } = useAuth();
   const isAuthor = userId === initialNote.author_id;
+  const [showMoreTools, setShowMoreTools] = useState(false);
 
   // Counters & Interactive States
   const [note, setNote] = useState<NoteDetails>(initialNote);
@@ -532,6 +535,94 @@ export default function NoteDetailsClient({
                   </Button>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Study Copilot Foundation Panel */}
+          <Card className="bg-zinc-900/40 border-zinc-800/60 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col mt-2">
+            {/* Decorative gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-violet-500/5 pointer-events-none" />
+            
+            <CardHeader className="pb-4 border-b border-zinc-800/40 relative z-10 flex flex-row items-start gap-3">
+              <div className="bg-indigo-500/10 p-2.5 rounded-xl border border-indigo-500/20 shrink-0">
+                <Sparkles className="h-5 w-5 text-indigo-400" />
+              </div>
+              <div className="flex flex-col">
+                <CardTitle className="text-sm font-bold text-zinc-100 leading-tight">Study Copilot for this note</CardTitle>
+                <p className="text-[10px] text-zinc-400 mt-1">Generate study material from this uploaded PDF.</p>
+              </div>
+            </CardHeader>
+
+            <CardContent className="pt-4 pb-5 flex flex-col gap-4 relative z-10">
+              
+              {/* Primary Tools */}
+              <div className="flex flex-col gap-2.5">
+                {STUDY_TOOLS.filter(t => t.priority === "primary").map((tool) => {
+                  const Icon = tool.icon;
+                  return (
+                    <Button
+                      key={tool.id}
+                      disabled={!tool.enabled}
+                      variant="outline"
+                      className="w-full justify-start border-zinc-800/60 text-zinc-300 h-auto py-3 px-3.5 relative overflow-hidden bg-zinc-950/50 flex flex-col items-start gap-1.5 hover:bg-zinc-900/80 hover:border-indigo-500/30 transition-all"
+                      onClick={() => {
+                        if (!tool.enabled) {
+                          toast.info(`This tool will be enabled in a later Phase 8 step.`);
+                        }
+                      }}
+                    >
+                      <span className="flex items-center justify-between w-full">
+                        <span className="flex items-center gap-2 font-bold text-xs text-zinc-100">
+                          <Icon className="h-4 w-4 text-indigo-400" /> {tool.title}
+                        </span>
+                        <span className="text-[9px] bg-zinc-800/80 text-zinc-400 px-1.5 py-0.5 rounded border border-zinc-700 font-bold uppercase tracking-wider">
+                          {tool.status}
+                        </span>
+                      </span>
+                      <span className="text-[10px] text-zinc-500 text-left pl-6 w-full whitespace-normal">
+                        {tool.description}
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
+
+              {/* Secondary Tools Toggle */}
+              <div className="flex flex-col gap-2 pt-2 border-t border-zinc-800/40">
+                <button 
+                  onClick={() => setShowMoreTools(!showMoreTools)}
+                  className="flex items-center justify-between w-full py-1.5 text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
+                >
+                  <span>More study tools</span>
+                  {showMoreTools ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+
+                {showMoreTools && (
+                  <div className="grid grid-cols-2 gap-2 mt-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                    {STUDY_TOOLS.filter(t => t.priority === "secondary").map((tool) => {
+                      const Icon = tool.icon;
+                      return (
+                        <Button
+                          key={tool.id}
+                          disabled={!tool.enabled}
+                          variant="outline"
+                          className="w-full justify-start border-zinc-800/50 text-zinc-400 h-auto py-2.5 px-3 bg-zinc-950/30 flex flex-col items-start gap-1 hover:bg-zinc-900/60"
+                          onClick={() => {
+                            if (!tool.enabled) {
+                              toast.info("This tool will be enabled in a later Phase 8 step.");
+                            }
+                          }}
+                        >
+                          <span className="flex items-center gap-1.5 font-bold text-[11px] text-zinc-300">
+                            <Icon className="h-3 w-3" /> <span className="truncate">{tool.title}</span>
+                          </span>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              
             </CardContent>
           </Card>
         </div>

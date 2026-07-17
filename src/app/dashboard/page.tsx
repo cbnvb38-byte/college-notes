@@ -40,6 +40,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useSupabase } from "@/hooks/useSupabase";
+import { StudyCopilotDashboardCard } from "@/components/study-copilot/study-copilot-dashboard-card";
 
 
 // TypeScript interfaces for database records
@@ -286,6 +287,8 @@ export default function Dashboard() {
               </Card>
             </Link>
           </div>
+
+          <StudyCopilotDashboardCard />
 
           {/* Main Tabs panel */}
           <Tabs defaultValue="uploads" className="w-full flex-grow flex flex-col">
