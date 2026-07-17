@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Sparkles, Clock, Copy, Check, FileText, ExternalLink, ArrowRight } from "lucide-react";
 import { SavedGeneration } from "@/app/actions/copilot-history";
+import { getResultPreview, getCopyableResultText } from "@/lib/ai/result-formatting";
 
 interface SavedSummaryCardProps {
   generation: SavedGeneration;
@@ -18,20 +19,12 @@ export function SavedSummaryCard({ generation }: SavedSummaryCardProps) {
     year: "numeric",
   });
 
-  // Clean 2-line text preview
-  const preview = (generation.result_text ?? "")
-    .replace(/##\s*/g, "")
-    .replace(/\*\*/g, "")
-    .replace(/\n+/g, " ")
-    .trim()
-    .slice(0, 180);
+  const preview = getResultPreview(generation);
 
   const handleCopy = async () => {
-    if (!generation.result_text) return;
     try {
-      await navigator.clipboard.writeText(
-        `Smart Summary — ${generation.note_title}\n${"=".repeat(60)}\n\n${generation.result_text}`
-      );
+      const copyText = getCopyableResultText(generation);
+      await navigator.clipboard.writeText(copyText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {

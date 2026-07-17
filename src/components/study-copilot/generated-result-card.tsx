@@ -14,13 +14,9 @@ import {
   ListChecks,
   Target,
 } from "lucide-react";
+import { parseSummarySections, getGenerationTypeLabel, getCopyableResultText } from "@/lib/ai/result-formatting";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-interface ParsedSection {
-  heading: string;
-  content: string;
-}
 
 interface GeneratedResultCardProps {
   resultText: string;
@@ -32,54 +28,6 @@ interface GeneratedResultCardProps {
   onHide?: () => void;
   /** Compact mode: show preview only, with an "Open" toggle */
   compact?: boolean;
-}
-
-// ─── Markdown Section Parser ─────────────────────────────────────────────────
-
-const SECTION_PATTERNS = [
-  { key: "Quick Summary", label: "Quick Summary", icon: Sparkles },
-  { key: "Detailed Summary", label: "Detailed Summary", icon: FileText },
-  { key: "Key Concepts", label: "Key Concepts", icon: Lightbulb },
-  { key: "Important Exam Points", label: "Important Exam Points", icon: ListChecks },
-  { key: "Revision Tip", label: "Revision Tip", icon: Target },
-];
-
-/** Escape text to avoid any injection even via text nodes */
-function safe(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-/** Parse Gemini markdown output into structured sections. */
-function parseSections(text: string): ParsedSection[] {
-  // Normalise line-endings
-  const normalised = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-
-  // Regex: match any of our expected headings in various markdown forms
-  const headingRegex =
-    /^(?:#{1,3}\s*|[*]{2})?(Quick Summary|Detailed Summary|Key Concepts|Important Exam Points|Revision Tip)[*]*:?\s*$/gim;
-
-  const matches: { index: number; heading: string }[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = headingRegex.exec(normalised)) !== null) {
-    matches.push({ index: m.index, heading: m[1] });
-  }
-
-  if (matches.length === 0) {
-    // Fallback: return whole text as one "Summary" section
-    return [{ heading: "Summary", content: normalised.trim() }];
-  }
-
-  const sections: ParsedSection[] = [];
-  for (let i = 0; i < matches.length; i++) {
-    const start = matches[i].index + matches[i].heading.length + (text[matches[i].index] === "#" ? 3 : 0);
-    const end = i + 1 < matches.length ? matches[i + 1].index : normalised.length;
-    const rawContent = normalised.slice(start, end).trim();
-    sections.push({ heading: matches[i].heading, content: rawContent });
-  }
-  return sections;
 }
 
 /** Render a single line as JSX bullet/numbered or plain */
@@ -169,28 +117,11 @@ const SECTION_HEADING_COLOR: Record<string, string> = {
   "Summary": "text-zinc-200",
 };
 
-// ─── Clean Copy Text ──────────────────────────────────────────────────────────
-
-function buildCopyText(noteTitle: string | undefined, text: string): string {
-  const sections = parseSections(text);
-  const lines: string[] = [];
-  if (noteTitle) {
-    lines.push(`Smart Summary — ${noteTitle}`);
-    lines.push("=".repeat(60));
-    lines.push("");
-  }
-  for (const s of sections) {
-    lines.push(s.heading.toUpperCase());
-    lines.push(s.content);
-    lines.push("");
-  }
-  return lines.join("\n").trim();
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function GeneratedResultCard({
   resultText,
+  resultJson,
   noteTitle,
   createdAt,
   generationType,
@@ -200,11 +131,18 @@ export function GeneratedResultCard({
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(!compact);
 
-  const sections = parseSections(resultText);
+  const sections = parseSummarySections(resultText, resultJson || null);
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(buildCopyText(noteTitle, resultText));
+      const copyText = getCopyableResultText({
+        id: "", note_id: "", status: "completed", created_at: "",
+        generation_type: generationType,
+        note_title: noteTitle || "",
+        result_text: resultText,
+        result_json: resultJson || null
+      });
+      await navigator.clipboard.writeText(copyText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -222,10 +160,7 @@ export function GeneratedResultCard({
       })
     : null;
 
-  const typeLabel =
-    generationType === "summary"
-      ? "Smart Summary"
-      : generationType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const typeLabel = getGenerationTypeLabel(generationType);
 
   return (
     <div className="w-full flex flex-col gap-0 rounded-2xl border border-zinc-800/60 bg-zinc-900/50 backdrop-blur-md overflow-hidden shadow-2xl">

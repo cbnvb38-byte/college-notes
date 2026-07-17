@@ -34,6 +34,7 @@ import { STUDY_TOOLS } from "@/lib/ai/study-tools";
 import { GenerationType } from "@/lib/ai/types";
 import { Check } from "lucide-react";
 import { CopyResultButton } from "@/components/study-copilot/copy-result-button";
+import { getCopyableResultText } from "@/lib/ai/result-formatting";
 interface RelatedNote {
   id: string;
   title: string;
@@ -697,7 +698,18 @@ export default function NoteDetailsClient({
                     >
                       Open Reader →
                     </Link>
-                    <CopyResultButton text={generatedResult.text} />
+                    <CopyResultButton 
+                      text={getCopyableResultText({
+                        id: generatedResult.id,
+                        note_id: note.id,
+                        generation_type: "summary",
+                        status: "completed",
+                        result_text: generatedResult.text,
+                        result_json: null,
+                        created_at: new Date().toISOString(),
+                        note_title: note.title
+                      })} 
+                    />
                     <Link
                       href="/dashboard/study-copilot"
                       className="text-[11px] font-semibold text-zinc-500 hover:text-zinc-300 border border-zinc-700/50 bg-zinc-800/40 hover:bg-zinc-800 px-2.5 py-1 rounded-lg transition-all"

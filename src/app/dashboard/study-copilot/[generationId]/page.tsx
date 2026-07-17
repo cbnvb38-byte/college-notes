@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { GeneratedResultCard } from "@/components/study-copilot/generated-result-card";
 import { getAIGenerationById } from "@/app/actions/copilot-history";
 import { CopyResultButton } from "@/components/study-copilot/copy-result-button";
+import { getGenerationTypeLabel, getCopyableResultText } from "@/lib/ai/result-formatting";
 
 interface PageProps {
   params: Promise<{ generationId: string }>;
@@ -60,10 +61,7 @@ export default async function GenerationReaderPage({ params }: PageProps) {
     minute: "2-digit",
   });
 
-  const typeLabel =
-    gen.generation_type === "summary"
-      ? "Smart Summary"
-      : gen.generation_type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const typeLabel = getGenerationTypeLabel(gen.generation_type);
 
   return (
     <div className="relative min-h-screen bg-zinc-950 text-zinc-50 overflow-hidden flex flex-col font-sans">
@@ -97,11 +95,7 @@ export default async function GenerationReaderPage({ params }: PageProps) {
                 <ExternalLink className="h-3.5 w-3.5" /> View Note
               </Button>
             </Link>
-            {gen.result_text && (
-              <CopyResultButton
-                text={`${typeLabel} — ${gen.note_title}\n${"=".repeat(60)}\n\n${gen.result_text}`}
-              />
-            )}
+            <CopyResultButton text={getCopyableResultText(gen)} />
           </div>
         </div>
 
