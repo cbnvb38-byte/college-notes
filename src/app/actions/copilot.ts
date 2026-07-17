@@ -5,6 +5,7 @@ import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/l
 import { AppError, handleError } from "@/lib/errors";
 import { generateContent, GenerationType, isAIConfigured } from "@/lib/ai/gemini";
 import { revalidatePath } from "next/cache";
+import { extractPdfText } from "@/lib/pdf/extract-text";
 
 /**
  * Returns the current user's study copilot access (plan and limits).
@@ -89,7 +90,7 @@ export async function generateStudyMaterial(noteId: string, generationType: Gene
     const supabase = createServiceRoleSupabaseClient();
     const { data: note, error: noteError } = await supabase
       .from("notes")
-      .select("id, status, title")
+      .select("id, status, title, file_path")
       .eq("id", noteId)
       .single();
 
@@ -106,17 +107,61 @@ export async function generateStudyMaterial(noteId: string, generationType: Gene
       throw new AppError("Monthly AI usage limit reached. Please upgrade to continue.", 403, "LIMIT_REACHED");
     }
 
-    // 3. Extract PDF Text (Placeholder for Phase 8)
-    // NOTE: True PDF text extraction is complex on edge environments.
-    // For this phase, we safely return a placeholder if extraction isn't ready.
-    const isExtractionReady = false; 
+    // 3. Extract PDF Text or Check Cache
     let extractedText = "";
 
-    if (!isExtractionReady) {
+    // Check cache first
+    const { data: cacheRow } = await (supabase as any)
+      .from("note_text_cache")
+      .select("extracted_text")
+      .eq("note_id", noteId)
+      .single();
+
+    if (cacheRow && cacheRow.extracted_text && cacheRow.extracted_text.length >= 100) {
+      extractedText = cacheRow.extracted_text;
+    } else {
+      // Need to extract
+      if (!note.file_path) {
+        throw new AppError("Note file path is missing.", 400, "INVALID_INPUT");
+      }
+
+      // Download from storage
+      const { data: fileData, error: downloadError } = await supabase
+        .storage
+        .from("notes")
+        .download(note.file_path);
+
+      if (downloadError || !fileData) {
+        console.error("[generateStudyMaterial] Failed to download PDF:", downloadError);
+        throw new AppError("Could not load the PDF file from storage.", 500, "STORAGE_ERROR");
+      }
+
+      // Convert to buffer and extract
+      const buffer = Buffer.from(await fileData.arrayBuffer());
+      const extractResult = await extractPdfText(buffer);
+
+      if (!extractResult.success || !extractResult.text) {
+        return {
+          success: false,
+          error: extractResult.message || "Failed to extract text from PDF.",
+          code: "EXTRACTION_FAILED"
+        };
+      }
+
+      extractedText = extractResult.text;
+
+      // Upsert into cache
+      await (supabase as any).from("note_text_cache").upsert({
+        note_id: noteId,
+        extracted_text: extractedText
+      }, { onConflict: "note_id" });
+    }
+
+    if (extractedText.length < 100) {
       return {
         success: false,
-        error: "Study Copilot is ready, but PDF text extraction is not configured yet.",
-        code: "EXTRACTION_NOT_READY"
+        error: "This PDF does not contain enough readable text for Study Copilot.",
+        code: "EXTRACTION_FAILED"
       };
     }
 
@@ -124,19 +169,21 @@ export async function generateStudyMaterial(noteId: string, generationType: Gene
     if (!isAIConfigured()) {
        return {
         success: false,
-        error: "AI provider is not configured yet.",
+        error: "Gemini API key is not configured. Add GEMINI_API_KEY to .env.local and restart npm run dev.",
         code: "AI_NOT_CONFIGURED"
       };
     }
 
     // 5. Generate AI Content
-    // This part will only run if extraction is ready and AI is configured.
     let generatedResult;
     try {
       generatedResult = await generateContent(extractedText, generationType, optionalQuestion);
     } catch (e: any) {
       console.error("[generateStudyMaterial] AI Generation failed:", e);
-      throw new AppError("Failed to generate content: " + e.message, 500, "AI_ERROR");
+      if (e.message?.includes("429")) {
+        throw new AppError("Gemini free quota reached. Please wait and try again later.", 429, "QUOTA_REACHED");
+      }
+      throw new AppError("Failed to generate content. Please try again.", 500, "AI_ERROR");
     }
 
     const { data: generationRow, error: saveError } = await (supabase as any)

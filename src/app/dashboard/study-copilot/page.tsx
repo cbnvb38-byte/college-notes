@@ -200,12 +200,16 @@ export default async function StudyCopilotDashboardPage() {
                       </div>
                       
                       <div className="p-5 sm:w-48 bg-zinc-950/30 flex flex-col justify-center items-stretch gap-2 shrink-0">
-                         <Link href={`/notes/${gen.notes?.id}`}>
-                           <Button variant="outline" className="w-full h-9 text-xs font-bold border-zinc-700 hover:bg-zinc-800 hover:text-white">
-                             View Note
+                         <Link href={`/dashboard/study-copilot/${gen.id}`}>
+                           <Button className="w-full h-9 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white">
+                             View Material
                            </Button>
                          </Link>
-                         {/* Note: In a real app, 'View Generation' might open a modal or dedicated page, but for now we just link back to the note since the panel is there */}
+                         <Link href={`/notes/${gen.notes?.id}`}>
+                           <Button variant="outline" className="w-full h-9 text-xs font-bold border-zinc-700 hover:bg-zinc-800 hover:text-white">
+                             Original Note
+                           </Button>
+                         </Link>
                       </div>
                     </div>
                   </CardContent>

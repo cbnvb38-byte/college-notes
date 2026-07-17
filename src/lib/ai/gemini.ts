@@ -31,17 +31,20 @@ export type GenerationType =
 export function getPromptForGenerationType(type: GenerationType, optionalQuestion?: string): string {
   const baseInstruction = `You are a helpful, premium AI study assistant. 
 IMPORTANT RULE: You MUST answer using ONLY the provided note text. 
-If the answer or information is not clearly available in the provided note text, you MUST reply with: "This is not clearly available in the uploaded note."
 Do NOT invent facts. Keep your explanations student-friendly and use simple language.`;
 
   switch (type) {
     case "summary":
       return `${baseInstruction}
 Generate a structured summary of the note text provided. 
-Format your response in Markdown with:
-1. A brief 'Overview' paragraph.
-2. A '5-Bullet Quick Summary'.
-3. A 'Key Terms' section listing important definitions found in the text.`;
+Return the result strictly as a JSON object (no markdown blocks, just raw JSON) matching this exact format:
+{
+  "quickSummary": ["Point 1", "Point 2", "Point 3", "Point 4", "Point 5"],
+  "detailedSummary": "A comprehensive paragraph explaining the core content...",
+  "keyConcepts": [{"term": "Concept Name", "explanation": "Brief definition"}],
+  "importantExamPoints": ["Exam point 1", "Exam point 2"],
+  "revisionTip": "One actionable tip for mastering this material"
+}`;
 
     case "mcq":
       return `${baseInstruction}
@@ -124,7 +127,7 @@ export async function generateContent(noteText: string, type: GenerationType, op
   const prompt = `Here is the note text to analyze:\n\n${noteText}`;
 
   // Use JSON schema for formats that expect JSON
-  const isJsonExpected = type === "mcq" || type === "flashcards";
+  const isJsonExpected = type === "mcq" || type === "flashcards" || type === "summary";
 
   try {
     const response = await ai.models.generateContent({

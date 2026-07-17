@@ -267,7 +267,7 @@ DECLARE
 BEGIN
   -- Check user details
   IF p_user_id IS NOT NULL THEN
-    SELECT s.branch_id, n.semester, p.college 
+    SELECT s.branch_id, p.semester, p.college 
     INTO v_branch_id, v_semester, v_college
     FROM public.profiles p
     LEFT JOIN public.notes n ON n.author_id = p.id

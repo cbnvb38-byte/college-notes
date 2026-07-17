@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { GeneratedResultCard } from "@/components/study-copilot/generated-result-viewer";
 import { getStudyCopilotAccess, generateStudyMaterial } from "@/app/actions/copilot";
 import { GenerationType } from "@/lib/ai/gemini";
 import { toast } from "sonner";
@@ -197,8 +198,8 @@ export function StudyCopilotPanel({ noteId }: StudyCopilotPanelProps) {
                      <p className="text-xs text-zinc-500 mt-1">This feature will be fully unlocked soon.</p>
                    </div>
                 </div>
-              ) : typeof generatedResult === 'string' ? (
-                <pre className="whitespace-pre-wrap font-sans">{generatedResult}</pre>
+              ) : generatedType ? (
+                <GeneratedResultCard type={generatedType} data={generatedResult} />
               ) : (
                 <pre className="whitespace-pre-wrap font-mono text-xs">{JSON.stringify(generatedResult, null, 2)}</pre>
               )}
@@ -220,21 +221,22 @@ export function StudyCopilotPanel({ noteId }: StudyCopilotPanelProps) {
               const Icon = tool.icon;
               const isLoading = isGenerating === tool.id;
               
+              const isDisabled = tool.id !== 'summary';
               return (
                 <button
                   key={tool.id}
                   onClick={() => handleGenerate(tool.id)}
-                  disabled={isLocked || isGenerating !== null}
+                  disabled={isLocked || isGenerating !== null || isDisabled}
                   className={`
                     group relative text-left p-4 rounded-xl border transition-all duration-300
-                    ${isLocked || isGenerating !== null 
-                      ? 'border-zinc-800/50 bg-zinc-900/30 opacity-70 cursor-not-allowed' 
+                    ${(isLocked || isGenerating !== null || isDisabled)
+                      ? 'border-zinc-800/50 bg-zinc-900/30 opacity-60 cursor-not-allowed' 
                       : 'border-zinc-800/80 bg-zinc-900/50 hover:bg-zinc-800 hover:border-zinc-700 cursor-pointer shadow-sm hover:shadow-md'
                     }
                   `}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${tool.bg} ${isLocked ? 'grayscale opacity-50' : ''}`}>
+                    <div className={`p-2 rounded-lg ${tool.bg} ${(isLocked || isDisabled) ? 'grayscale opacity-50' : ''}`}>
                       {isLoading ? (
                         <Loader2 className={`h-5 w-5 ${tool.color} animate-spin`} />
                       ) : (
@@ -242,9 +244,16 @@ export function StudyCopilotPanel({ noteId }: StudyCopilotPanelProps) {
                       )}
                     </div>
                     <div>
-                      <h4 className="font-bold text-sm text-zinc-200 group-hover:text-white transition-colors">
-                        {tool.label}
-                      </h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm text-zinc-200 group-hover:text-white transition-colors">
+                          {tool.label}
+                        </h4>
+                        {isDisabled && (
+                           <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
+                             Soon
+                           </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-zinc-500 mt-0.5 line-clamp-1">
                         {tool.desc}
                       </p>
