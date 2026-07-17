@@ -393,6 +393,7 @@ export async function fetchNoteDetailsAction(noteId: string) {
         created_at,
         file_url,
         file_size,
+        file_path,
         status,
         author_id,
         average_rating,

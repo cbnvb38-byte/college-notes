@@ -29,7 +29,11 @@ import { useAuth } from "@clerk/nextjs";
 import { submitRating, removeRating } from "@/app/actions/ratings";
 import { ReviewsSection } from "./reviews-section";
 import { reportNote } from "@/app/actions/reports";
+import { generateStudyMaterialAction } from "@/app/actions/copilot";
 import { STUDY_TOOLS } from "@/lib/ai/study-tools";
+import { GenerationType } from "@/lib/ai/types";
+import { GeneratedResultCard } from "@/components/study-copilot/generated-result-card";
+import { Check } from "lucide-react";
 interface RelatedNote {
   id: string;
   title: string;
@@ -59,6 +63,7 @@ interface NoteDetails {
   created_at: string;
   file_url: string;
   file_size: number;
+  file_path: string | null;
   profiles: {
     name: string | null;
   } | null;
@@ -101,6 +106,9 @@ export default function NoteDetailsClient({
   const { userId } = useAuth();
   const isAuthor = userId === initialNote.author_id;
   const [showMoreTools, setShowMoreTools] = useState(false);
+  const [isGenerating, setIsGenerating] = useState<GenerationType | null>(null);
+  const [generatedResult, setGeneratedResult] = useState<{ type: GenerationType, text: string } | null>(null);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   // Counters & Interactive States
   const [note, setNote] = useState<NoteDetails>(initialNote);
@@ -281,6 +289,33 @@ export default function NoteDetailsClient({
   // Convert bytes to MB helper
   const formatFileSize = (bytes: number) => {
     return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  };
+
+  const handleGenerate = async (generationType: GenerationType) => {
+    if (isGenerating) return;
+    
+    setIsGenerating(generationType);
+    setGeneratedResult(null);
+    setGenerateError(null);
+    
+    try {
+      const res = await generateStudyMaterialAction(note.id, generationType);
+      
+      if (res.success && res.data) {
+        toast.success(res.message || "Generated successfully.");
+        setGeneratedResult({ type: generationType, text: res.data.resultText });
+      } else {
+        const errorMsg = res.error?.message || "Failed to generate study material.";
+        setGenerateError(errorMsg);
+        toast.error(errorMsg);
+      }
+    } catch (error: any) {
+      const errorMsg = error.message || "An unexpected error occurred.";
+      setGenerateError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setIsGenerating(null);
+    }
   };
 
   return (
@@ -547,9 +582,21 @@ export default function NoteDetailsClient({
               <div className="bg-indigo-500/10 p-2.5 rounded-xl border border-indigo-500/20 shrink-0">
                 <Sparkles className="h-5 w-5 text-indigo-400" />
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col flex-1 min-w-0">
                 <CardTitle className="text-sm font-bold text-zinc-100 leading-tight">Study Copilot for this note</CardTitle>
                 <p className="text-[10px] text-zinc-400 mt-1">Generate study material from this uploaded PDF.</p>
+                {/* AI Readiness Badge */}
+                <div className="mt-2 flex items-center gap-2">
+                  {note.file_path ? (
+                    <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                      ✓ AI Ready
+                    </span>
+                  ) : (
+                    <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                      ⚠ No PDF — AI not available
+                    </span>
+                  )}
+                </div>
               </div>
             </CardHeader>
 
@@ -562,18 +609,21 @@ export default function NoteDetailsClient({
                   return (
                     <Button
                       key={tool.id}
-                      disabled={!tool.enabled}
+                      disabled={!tool.enabled || isGenerating !== null}
                       variant="outline"
-                      className="w-full justify-start border-zinc-800/60 text-zinc-300 h-auto py-3 px-3.5 relative overflow-hidden bg-zinc-950/50 flex flex-col items-start gap-1.5 hover:bg-zinc-900/80 hover:border-indigo-500/30 transition-all"
+                      className="w-full justify-start border-zinc-800/60 text-zinc-300 h-auto py-3 px-3.5 relative overflow-hidden bg-zinc-950/50 flex flex-col items-start gap-1.5 hover:bg-zinc-900/80 hover:border-indigo-500/30 transition-all disabled:opacity-50"
                       onClick={() => {
                         if (!tool.enabled) {
                           toast.info(`This tool will be enabled in a later Phase 8 step.`);
+                          return;
                         }
+                        handleGenerate(tool.generationType);
                       }}
                     >
                       <span className="flex items-center justify-between w-full">
                         <span className="flex items-center gap-2 font-bold text-xs text-zinc-100">
-                          <Icon className="h-4 w-4 text-indigo-400" /> {tool.title}
+                          {isGenerating === tool.generationType ? <Loader2 className="h-4 w-4 text-indigo-400 animate-spin" /> : <Icon className="h-4 w-4 text-indigo-400" />} 
+                          {tool.title}
                         </span>
                         <span className="text-[9px] bg-zinc-800/80 text-zinc-400 px-1.5 py-0.5 rounded border border-zinc-700 font-bold uppercase tracking-wider">
                           {tool.status}
@@ -623,10 +673,45 @@ export default function NoteDetailsClient({
                 )}
               </div>
               
+              {/* Inline Error Display */}
+              {generateError && !generatedResult && (
+                <div className="flex items-start gap-2 p-3 bg-red-500/8 border border-red-500/20 rounded-lg mt-1 animate-in fade-in">
+                  <FileWarning className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-red-300 leading-relaxed">{generateError}</p>
+                </div>
+              )}
+
+              {/* Compact success state in panel — full result is shown below the main grid */}
+              {generatedResult && (
+                <div className="flex items-start gap-2.5 p-3 bg-emerald-500/8 border border-emerald-500/20 rounded-lg mt-1 animate-in fade-in">
+                  <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-[11px] text-emerald-300 font-semibold leading-snug">
+                      Summary saved to Study Copilot history.
+                    </p>
+                    <p className="text-[10px] text-zinc-500">Scroll down to view the full result.</p>
+                  </div>
+                </div>
+              )}
+              
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {/* ─── Wide Generated Result Card ────────────────────────────────────────── */}
+      {/* Placed OUTSIDE the narrow side panel — uses full page width */}
+      {generatedResult && (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <GeneratedResultCard
+            resultText={generatedResult.text}
+            generationType={generatedResult.type}
+            noteTitle={note.title}
+            createdAt={new Date().toISOString()}
+            onHide={() => setGeneratedResult(null)}
+          />
+        </div>
+      )}
 
       {/* Reviews Section */}
       <ReviewsSection 

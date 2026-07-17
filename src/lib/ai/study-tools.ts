@@ -37,8 +37,8 @@ export const STUDY_TOOLS: StudyToolConfig[] = [
     group: "Understand",
     priority: "primary",
     icon: FileText,
-    status: "Coming in Phase 8.1",
-    enabled: false,
+    status: "Active",
+    enabled: true,
   },
   {
     id: "mcq-quiz",
