@@ -90,6 +90,18 @@ export function getResultPreview(generation: SavedGeneration): string {
     }
   }
 
+  if (generation.generation_type === "flashcards") {
+    const cards = parseFlashcardsResult(generation.result_text, generation.result_json as Record<string, unknown> | null);
+    if (cards && cards.length > 0) {
+      const topics = Array.from(new Set(cards.map((c: any) => c.topic).filter(Boolean)));
+      let topicStr = "";
+      if (topics.length > 0) {
+        topicStr = ` • ${topics.slice(0, 3).join(", ")}`;
+      }
+      return `${cards.length} flashcards generated${topicStr}`;
+    }
+  }
+
   const text = safelyExtractText(generation.result_text, generation.result_json as Record<string, unknown> | null);
   
   if (!text || (text.trim().startsWith("{") && text.trim().endsWith("}"))) {
@@ -206,6 +218,73 @@ export function parseMCQResult(resultText: string | null, resultJson: Record<str
   });
 }
 
+export function parseFlashcardsResult(resultText: string | null, resultJson: Record<string, unknown> | null): any[] | null {
+  let parsed: any = null;
+
+  if (resultJson) {
+    if (resultJson.flashcards) parsed = resultJson;
+    else if (resultJson.cards) parsed = { flashcards: resultJson.cards };
+    else if (resultJson.items) parsed = { flashcards: resultJson.items };
+    else parsed = resultJson;
+  }
+
+  if (!parsed && resultText) {
+    let textToParse = resultText.trim();
+    
+    const jsonFenceMatch = /```json\s*([\s\S]*?)\s*```/i.exec(textToParse);
+    if (jsonFenceMatch && jsonFenceMatch[1]) {
+      textToParse = jsonFenceMatch[1].trim();
+    } else if (textToParse.startsWith("{") && textToParse.endsWith("}")) {
+      // It's a JSON string
+    } else {
+      const firstBrace = textToParse.indexOf("{");
+      const lastBrace = textToParse.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        textToParse = textToParse.slice(firstBrace, lastBrace + 1);
+      }
+    }
+    
+    textToParse = textToParse.replace(/(?<!\\)\\([a-zA-Z])/g, "\\\\$1");
+
+    try {
+      parsed = JSON.parse(textToParse);
+      if (parsed.cards) parsed.flashcards = parsed.cards;
+      else if (parsed.items) parsed.flashcards = parsed.items;
+    } catch {
+      try {
+        const cardsMatch = textToParse.match(/"flashcards"\s*:\s*(\[[^]*\])/i);
+        if (cardsMatch && cardsMatch[1]) {
+          parsed = { flashcards: JSON.parse(cardsMatch[1]) };
+        }
+      } catch {
+        // failed
+      }
+    }
+  }
+
+  if (!parsed) return null;
+
+  let rawCards: any[] = [];
+  if (Array.isArray(parsed)) {
+    rawCards = parsed;
+  } else if (Array.isArray(parsed.flashcards)) {
+    rawCards = parsed.flashcards;
+  } else if (Array.isArray(parsed.cards)) {
+    rawCards = parsed.cards;
+  } else if (Array.isArray(parsed.items)) {
+    rawCards = parsed.items;
+  } else {
+    return null;
+  }
+
+  return rawCards.map((c: any) => ({
+    front: String(c.front || c.question || c.term || ""),
+    back: String(c.back || c.answer || c.definition || ""),
+    topic: c.topic || "",
+    difficulty: c.difficulty || "medium",
+  }));
+}
+
 export function getCopyableResultText(generation: SavedGeneration): string {
   const lines: string[] = [];
   const typeLabel = getGenerationTypeLabel(generation.generation_type);
@@ -233,6 +312,18 @@ export function getCopyableResultText(generation: SavedGeneration): string {
     }
   }
 
+  if (generation.generation_type === "flashcards") {
+    const cards = parseFlashcardsResult(generation.result_text, generation.result_json as Record<string, unknown> | null);
+    if (cards && cards.length > 0) {
+      cards.forEach((c: any, i: number) => {
+        lines.push(`${i + 1}. Front: ${c.front}`);
+        lines.push(`   Back: ${c.back}`);
+        lines.push("");
+      });
+      return lines.join("\n").trim();
+    }
+  }
+
   const text = safelyExtractText(generation.result_text, generation.result_json as Record<string, unknown> | null);
   if (!text || (text.trim().startsWith("{") && text.trim().endsWith("}"))) {
     return "This saved result has no readable content.";
@@ -251,5 +342,6 @@ export function getCopyableResultText(generation: SavedGeneration): string {
 export function getGenerationTypeLabel(type: string): string {
   if (type === "summary") return "Smart Summary";
   if (type === "mcq") return "Practice Quiz";
+  if (type === "flashcards") return "Flashcards";
   return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }

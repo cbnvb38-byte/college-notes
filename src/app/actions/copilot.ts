@@ -35,7 +35,7 @@ export async function generateStudyMaterialAction(
       return { success: false, error: { message: "Note ID is required." } };
     }
 
-    if (generationType !== "summary" && generationType !== "mcq") {
+    if (generationType !== "summary" && generationType !== "mcq" && generationType !== "flashcards") {
       return {
         success: false,
         error: { message: "This tool will be enabled in a later Phase 8 step." },
@@ -155,6 +155,37 @@ Provided Text:
 """
 ${extractedText}
 """`;
+    } else if (generationType === "flashcards") {
+      prompt = `You are an expert AI Study Assistant.
+Your task is to create quick revision flashcards from the provided text.
+Use ONLY the information in the provided text. Do not add outside facts.
+
+Return ONLY valid JSON.
+Do not wrap in markdown.
+Do not add explanation outside JSON.
+Generate up to 15 flashcards if the content allows.
+Keep the front side short and clear. The back side should be exam-useful but not too long.
+Include mathematical expressions using LaTeX syntax (use $...$ for inline).
+Keep LaTeX valid. Escape LaTeX backslashes correctly for JSON strings (e.g., use \\\\frac instead of \\frac).
+Do not output raw markdown code fences.
+Do not output prose before or after JSON.
+
+Required format:
+{
+  "flashcards": [
+    {
+      "front": "Question or term",
+      "back": "Answer or explanation",
+      "topic": "Topic name",
+      "difficulty": "easy|medium|hard"
+    }
+  ]
+}
+
+Provided Text:
+"""
+${extractedText}
+"""`;
     }
 
     let resultText = "";
@@ -210,7 +241,7 @@ ${extractedText}
         resultText: saveResponse.data!.resultText,
         resultJson: saveResponse.data!.resultJson,
       },
-      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
+      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : generationType === "flashcards" ? "Flashcards generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
       error: undefined,
     };
   } catch (error: any) {
@@ -322,6 +353,32 @@ Required format:
 }
 ]
 }`;
+    } else if (generationType === "flashcards") {
+      prompt = `You are Study Copilot. Read the uploaded PDF document. It may be scanned or image-based. Use document understanding/OCR to extract the readable study content.
+Create quick revision flashcards from the document content.
+Use ONLY the information in the provided document. Do not add outside facts. If the document is unreadable, blurry, or does not contain enough study content, say clearly that the document could not be read.
+
+Return ONLY valid JSON.
+Do not wrap in markdown.
+Do not add explanation outside JSON.
+Generate up to 15 flashcards if the content allows.
+Keep the front side short and clear. The back side should be exam-useful but not too long.
+Include mathematical expressions using LaTeX syntax (use $...$ for inline).
+Keep LaTeX valid. Escape LaTeX backslashes correctly for JSON strings (e.g., use \\\\frac instead of \\frac).
+Do not output raw markdown code fences.
+Do not output prose before or after JSON.
+
+Required format:
+{
+  "flashcards": [
+    {
+      "front": "Question or term",
+      "back": "Answer or explanation",
+      "topic": "Topic name",
+      "difficulty": "easy|medium|hard"
+    }
+  ]
+}`;
     }
 
     devLog("Calling Gemini with PDF inlineData...");
@@ -382,7 +439,7 @@ Required format:
         resultText: saveResponse.data!.resultText,
         resultJson: saveResponse.data!.resultJson,
       },
-      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
+      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : generationType === "flashcards" ? "Flashcards generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
       error: undefined,
     };
   } catch (error: any) {
@@ -419,6 +476,19 @@ async function saveAIGenerationResult({
     } else {
       // Parse failed — keep raw text so client-side tolerant parser can try
       devLog("[MCQ Save] MCQ JSON parse completely failed, storing raw fallback in result_text");
+      resultJson = null;
+    }
+  } else if (generationType === "flashcards") {
+    // Import dynamically or assume it's available. Actually we need to import it at the top of the file!
+    const { parseFlashcardsResult } = await import("@/lib/ai/result-formatting");
+    const parsed = parseFlashcardsResult(finalResultText, null);
+    devLog("[Flashcards Save] raw output length:", finalResultText?.length ?? 0);
+    if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+      resultJson = { flashcards: parsed };
+      finalResultText = null;
+      devLog("[Flashcards Save] parse succeeded, flashcards:", parsed.length);
+    } else {
+      devLog("[Flashcards Save] Flashcards JSON parse completely failed, storing raw fallback in result_text");
       resultJson = null;
     }
   }

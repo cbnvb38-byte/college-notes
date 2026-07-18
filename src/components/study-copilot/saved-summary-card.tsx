@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sparkles, Clock, Copy, Check, FileText, ExternalLink, ArrowRight, BookOpen, Trash2, Loader2 } from "lucide-react";
+import { Sparkles, Clock, Copy, Check, FileText, ExternalLink, ArrowRight, BookOpen, Trash2, Loader2, GraduationCap } from "lucide-react";
 import { SavedGeneration, deleteAIGenerationAction } from "@/app/actions/copilot-history";
 import { getResultPreview, getCopyableResultText, getGenerationTypeLabel } from "@/lib/ai/result-formatting";
 import { toast } from "sonner";
@@ -62,6 +62,8 @@ export function SavedSummaryCard({ generation }: SavedSummaryCardProps) {
       <div className="bg-indigo-500/10 p-2.5 rounded-xl border border-indigo-500/20 shrink-0 mt-0.5">
         {generation.generation_type === "mcq" ? (
           <BookOpen className="h-4 w-4 text-indigo-400" />
+        ) : generation.generation_type === "flashcards" ? (
+          <GraduationCap className="h-4 w-4 text-indigo-400" />
         ) : (
           <FileText className="h-4 w-4 text-indigo-400" />
         )}

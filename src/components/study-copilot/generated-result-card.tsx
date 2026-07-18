@@ -14,9 +14,10 @@ import {
   ListChecks,
   Target,
   Eye,
-  HelpCircle
+  HelpCircle,
+  GraduationCap
 } from "lucide-react";
-import { parseSummarySections, getGenerationTypeLabel, getCopyableResultText, parseMCQResult } from "@/lib/ai/result-formatting";
+import { parseSummarySections, getGenerationTypeLabel, getCopyableResultText, parseMCQResult, parseFlashcardsResult } from "@/lib/ai/result-formatting";
 
 import { StudyMarkdownRenderer } from "./study-markdown-renderer";
 
@@ -129,6 +130,56 @@ function McqCard({ question, index }: { question: any, index: number }) {
   );
 }
 
+// ─── Flashcard Component ───────────────────────────────────────────────────────
+
+function Flashcard({ card, index }: { card: any, index: number }) {
+  const [showAnswer, setShowAnswer] = useState(false);
+
+  let difficultyColor = "bg-zinc-800 text-zinc-300 border-zinc-700";
+  if (card.difficulty === "easy") difficultyColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+  if (card.difficulty === "medium") difficultyColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+  if (card.difficulty === "hard") difficultyColor = "bg-red-500/10 text-red-400 border-red-500/20";
+
+  return (
+    <div className="flex flex-col gap-4 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <h3 className="text-sm font-bold text-zinc-100 flex items-start gap-2">
+          <span className="text-indigo-400 mt-0.5">{index + 1}.</span>
+          <div className="flex-1 -mt-1"><StudyMarkdownRenderer content={card.front} /></div>
+        </h3>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${difficultyColor}`}>
+            {card.difficulty || "medium"}
+          </span>
+          {card.topic && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border bg-zinc-800/80 text-zinc-400 border-zinc-700">
+              {card.topic}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="pl-6 mt-2">
+        {!showAnswer ? (
+          <button
+            onClick={() => setShowAnswer(true)}
+            className="flex items-center gap-1.5 text-xs font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <Eye className="h-3.5 w-3.5" /> Show Answer
+          </button>
+        ) : (
+          <div className="flex flex-col gap-3 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-start gap-2">
+              <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="text-sm font-bold text-emerald-300"><StudyMarkdownRenderer content={card.back} /></div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -145,11 +196,18 @@ export function GeneratedResultCard({
   const [expanded, setExpanded] = useState(!compact);
 
   const isMcq = generationType === "mcq";
+  const isFlashcards = generationType === "flashcards";
+
   const parsedQuestions = isMcq ? parseMCQResult(resultText, resultJson || null) : null;
+  const parsedCards = isFlashcards ? parseFlashcardsResult(resultText, resultJson || null) : null;
+
   const questions = parsedQuestions || [];
+  const cards = parsedCards || [];
+
   const validMcq = isMcq && questions.length > 0;
+  const validFlashcards = isFlashcards && cards.length > 0;
   
-  const sections = !isMcq || !validMcq ? parseSummarySections(resultText, resultJson || null) : [];
+  const sections = !isMcq && !isFlashcards ? parseSummarySections(resultText, resultJson || null) : [];
 
   const handleCopy = async () => {
     try {
@@ -197,7 +255,7 @@ export function GeneratedResultCard({
           </div>
           {noteTitle && (
             <p className="text-sm font-semibold text-zinc-100 truncate">
-              {generationType === "mcq" ? "Generated Practice Quiz" : "Generated Study Summary"}
+              {generationType === "mcq" ? "Generated Practice Quiz" : generationType === "flashcards" ? "Generated Flashcards" : "Generated Study Summary"}
             </p>
           )}
           <div className="flex items-center gap-3 flex-wrap">
@@ -254,7 +312,7 @@ export function GeneratedResultCard({
       </div>
 
       {/* ── Body: sections ── */}
-      {expanded && (!isMcq) && (
+      {expanded && (!isMcq && !isFlashcards) && (
         <div className="flex flex-col gap-0 divide-y divide-zinc-800/40">
           {sections.map((section, i) => {
             const Icon = SECTION_ICONS[section.heading] ?? BookOpen;
@@ -300,6 +358,15 @@ export function GeneratedResultCard({
         </div>
       )}
 
+      {/* ── Body: Flashcards ── */}
+      {expanded && validFlashcards && (
+        <div className="flex flex-col gap-0 divide-y divide-zinc-800/40">
+          {cards.map((c: any, i: number) => (
+            <Flashcard key={i} card={c} index={i} />
+          ))}
+        </div>
+      )}
+
       {/* ── Body: MCQ Fallback ── */}
       {expanded && isMcq && !validMcq && (
         <div className="p-5 flex flex-col gap-4 text-sm text-zinc-300">
@@ -316,12 +383,30 @@ export function GeneratedResultCard({
         </div>
       )}
 
+      {/* ── Body: Flashcards Fallback ── */}
+      {expanded && isFlashcards && !validFlashcards && (
+        <div className="p-5 flex flex-col gap-4 text-sm text-zinc-300">
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 p-4 rounded-xl flex items-start gap-3">
+            <HelpCircle className="h-5 w-5 mt-0.5 shrink-0" />
+            <p>Flashcards were generated but could not be parsed into individual cards.</p>
+          </div>
+          <details className="text-xs">
+            <summary className="cursor-pointer text-zinc-500 font-semibold mb-2 hover:text-zinc-300">View raw fallback</summary>
+            <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg overflow-x-auto">
+              <pre className="text-zinc-400 whitespace-pre-wrap">{resultText || JSON.stringify(resultJson, null, 2)}</pre>
+            </div>
+          </details>
+        </div>
+      )}
+
       {/* ── Compact preview (when collapsed) ── */}
       {!expanded && (
         <div className="px-5 py-4">
           <p className="text-xs text-zinc-500 line-clamp-2 leading-relaxed">
             {validMcq 
               ? `${questions.length} questions generated. Click Open to view and practice.`
+              : validFlashcards
+              ? `${cards.length} flashcards generated. Click Open to view and practice.`
               : (sections[0]?.content.slice(0, 200).replace(/\*\*/g, "") ?? "Click Open to view the full result.")
             }
           </p>

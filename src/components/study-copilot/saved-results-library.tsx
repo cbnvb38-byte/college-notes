@@ -12,7 +12,7 @@ interface SavedResultsLibraryProps {
   savedData: SavedGeneration[];
 }
 
-type TabType = "all" | "summary" | "mcq";
+type TabType = "all" | "summary" | "mcq" | "flashcards";
 type SortOption = "newest" | "oldest" | "type";
 
 export function SavedResultsLibrary({ savedData }: SavedResultsLibraryProps) {
@@ -38,6 +38,7 @@ export function SavedResultsLibrary({ savedData }: SavedResultsLibraryProps) {
     { id: "all", label: "All" },
     { id: "summary", label: "Summaries" },
     { id: "mcq", label: "Quizzes" },
+    { id: "flashcards", label: "Flashcards" },
   ];
 
   const filteredAndSortedData = useMemo(() => {
@@ -48,6 +49,8 @@ export function SavedResultsLibrary({ savedData }: SavedResultsLibraryProps) {
       result = result.filter((g) => g.generation_type === "summary");
     } else if (activeTab === "mcq") {
       result = result.filter((g) => g.generation_type === "mcq");
+    } else if (activeTab === "flashcards") {
+      result = result.filter((g) => g.generation_type === "flashcards");
     }
 
     // Search
@@ -111,6 +114,7 @@ export function SavedResultsLibrary({ savedData }: SavedResultsLibraryProps) {
     let message = "No saved study materials yet.";
     if (activeTab === "summary") message = "No smart summaries saved yet.";
     else if (activeTab === "mcq") message = "No practice quizzes saved yet.";
+    else if (activeTab === "flashcards") message = "No flashcards saved yet.";
 
     return (
       <div className="border border-dashed border-zinc-800/60 rounded-2xl py-12 flex flex-col items-center gap-3 text-center bg-zinc-900/10 mt-4">

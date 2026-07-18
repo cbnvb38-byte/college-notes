@@ -302,8 +302,8 @@ export default function NoteDetailsClient({
       return;
     }
     
-    // For now, only summary and mcq are enabled.
-    if (generationType !== "summary" && generationType !== "mcq") {
+    // For now, only summary, mcq, and flashcards are enabled.
+    if (generationType !== "summary" && generationType !== "mcq" && generationType !== "flashcards") {
       toast.info("This feature will be enabled in a later phase.");
       return;
     }
@@ -319,7 +319,7 @@ export default function NoteDetailsClient({
         toast.success(res.message || "Generated successfully.");
         setGeneratedResult({ type: generationType, text: res.data.resultText || "", json: res.data.resultJson, id: res.data.id });
       } else {
-        if (res.error?.code === "SCANNED_PDF_CONFIRM_REQUIRED") {
+        if (res.error && 'code' in res.error && res.error.code === "SCANNED_PDF_CONFIRM_REQUIRED") {
           setFallbackGenerationType(generationType);
           setShowScannedConfirmation(true);
         } else {
@@ -709,17 +709,22 @@ export default function NoteDetailsClient({
                       return (
                         <Button
                           key={tool.id}
-                          disabled={!tool.enabled}
+                          disabled={!tool.enabled || isGenerating !== null}
                           variant="outline"
-                          className="w-full justify-start border-zinc-800/50 text-zinc-400 h-auto py-2.5 px-3 bg-zinc-950/30 flex flex-col items-start gap-1 hover:bg-zinc-900/60"
+                          className="w-full justify-start border-zinc-800/50 text-zinc-400 h-auto py-2.5 px-3 bg-zinc-950/30 flex flex-col items-start gap-1 hover:bg-zinc-900/60 disabled:opacity-50"
                           onClick={() => {
                             if (!tool.enabled) {
                               toast.info("This tool will be enabled in a later Phase 8 step.");
+                              return;
                             }
+                            handleGenerate(tool.generationType);
                           }}
                         >
                           <span className="flex items-center gap-1.5 font-bold text-[11px] text-zinc-300">
-                            <Icon className="h-3 w-3" /> <span className="truncate">{tool.title}</span>
+                            {isGenerating === tool.generationType ? <Loader2 className="h-3 w-3 animate-spin text-indigo-400" /> : <Icon className="h-3 w-3" />} 
+                            <span className="truncate">
+                              {isGenerating === tool.generationType && showScannedConfirmation === false ? "Generating..." : tool.title}
+                            </span>
                           </span>
                         </Button>
                       );
