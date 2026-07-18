@@ -317,7 +317,7 @@ export default function NoteDetailsClient({
       
       if (res.success && res.data) {
         toast.success(res.message || "Generated successfully.");
-        setGeneratedResult({ type: generationType, text: res.data.resultText, json: res.data.resultJson, id: res.data.id });
+        setGeneratedResult({ type: generationType, text: res.data.resultText || "", json: res.data.resultJson, id: res.data.id });
       } else {
         if (res.error?.code === "SCANNED_PDF_CONFIRM_REQUIRED") {
           setFallbackGenerationType(generationType);
@@ -354,7 +354,7 @@ export default function NoteDetailsClient({
       
       if (res.success && res.data) {
         toast.success(res.message || "Generated successfully.");
-        setGeneratedResult({ type: fallbackGenerationType, text: res.data.resultText, json: res.data.resultJson, id: res.data.id });
+        setGeneratedResult({ type: fallbackGenerationType, text: res.data.resultText || "", json: res.data.resultJson, id: res.data.id });
       } else {
         const errorMsg = res.error?.message || "Failed to generate study material.";
         setGenerateError(errorMsg);
@@ -675,7 +675,7 @@ export default function NoteDetailsClient({
                         <span className="flex items-center gap-2 font-bold text-xs text-zinc-100">
                           {isGenerating === tool.generationType ? <Loader2 className="h-4 w-4 text-indigo-400 animate-spin" /> : <Icon className="h-4 w-4 text-indigo-400" />} 
                           {isGenerating === tool.generationType && showScannedConfirmation === false ? (
-                            "Generating Smart Summary..."
+                            "Generating " + tool.title + "..."
                           ) : (
                             tool.title
                           )}

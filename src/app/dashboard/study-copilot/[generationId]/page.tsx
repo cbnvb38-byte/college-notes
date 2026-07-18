@@ -122,9 +122,9 @@ export default async function GenerationReaderPage({ params }: PageProps) {
         </div>
 
         {/* ── Result renderer — read-only, no AI call ── */}
-        {gen.result_text ? (
+        {(gen.result_text || gen.result_json) ? (
           <GeneratedResultCard
-            resultText={gen.result_text}
+            resultText={gen.result_text || ""}
             resultJson={gen.result_json}
             generationType={gen.generation_type}
             noteTitle={gen.note_title}
@@ -132,7 +132,11 @@ export default async function GenerationReaderPage({ params }: PageProps) {
           />
         ) : (
           <div className="text-center py-12 text-zinc-600">
-            <p>No result text available for this generation.</p>
+            <p>
+              {gen.generation_type === "mcq"
+                ? "This Practice Quiz was saved without readable content. Please regenerate it."
+                : "No result text available for this generation."}
+            </p>
           </div>
         )}
 

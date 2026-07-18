@@ -5,6 +5,7 @@ import { GenerationType } from "@/lib/ai/types";
 import { createClient } from "@supabase/supabase-js";
 import { getStudyContentForNote } from "@/lib/ai/document-content";
 import { GoogleGenAI } from "@google/genai";
+import { parseMCQResult } from "@/lib/ai/result-formatting";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -189,75 +190,15 @@ ${extractedText}
       };
     }
 
-    let resultJson = null;
-    let finalResultText = resultText;
-    if (generationType === "mcq") {
-      try {
-        let textToParse = resultText.trim();
-        const jsonFenceMatch = /```json\s*([\s\S]*?)\s*```/i.exec(textToParse);
-        if (jsonFenceMatch && jsonFenceMatch[1]) {
-          textToParse = jsonFenceMatch[1].trim();
-        } else if (!textToParse.startsWith("{")) {
-          const firstBrace = textToParse.indexOf("{");
-          const lastBrace = textToParse.lastIndexOf("}");
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            textToParse = textToParse.slice(firstBrace, lastBrace + 1);
-          }
-        }
-        
-        // Basic pre-repair: if Gemini sent single backslashes in JSON (invalid JSON escape)
-        // This is a naive repair for the most common ones before parsing
-        textToParse = textToParse.replace(/(?<!\\)\\([a-zA-Z])/g, "\\\\$1");
-        
-        resultJson = JSON.parse(textToParse);
-        finalResultText = ""; // We successfully parsed it, no need to store giant raw JSON in text
-      } catch (e) {
-        devLog("Failed to parse MCQ JSON:", e);
-        // On failure, resultJson is null, finalResultText remains the raw string for tolerant client-side parsing
-      }
-    }
+    const saveResponse = await saveAIGenerationResult({
+      userId,
+      noteId,
+      generationType,
+      rawOutput: resultText,
+    });
 
-    // 5. Database Save
-    const { data: genRow, error: genError } = await supabase
-      .from("ai_generations")
-      .insert({
-        user_id: userId,
-        note_id: noteId,
-        generation_type: generationType,
-        status: "completed",
-        result_text: finalResultText || null,
-        result_json: resultJson,
-      })
-      .select("id")
-      .single();
-
-    if (genError) {
-      console.error("[Study Copilot] DB Save Error:", genError);
-      return { success: false, error: { message: "Failed to save generation result." } };
-    }
-
-    devLog("ai_generations row inserted:", genRow.id);
-
-    // 6. Increment Usage
-    const monthKey = new Date().toISOString().slice(0, 7) + "-01";
-    const { data: usageData } = await supabase
-      .from("ai_usage")
-      .select("id, generations_count")
-      .eq("user_id", userId)
-      .eq("month", monthKey)
-      .single();
-
-    if (usageData) {
-      await supabase
-        .from("ai_usage")
-        .update({ generations_count: usageData.generations_count + 1 })
-        .eq("id", usageData.id);
-    } else {
-      await supabase.from("ai_usage").insert({
-        user_id: userId,
-        month: monthKey,
-        generations_count: 1,
-      });
+    if (!saveResponse.success) {
+      return saveResponse;
     }
 
     devLog("------- Smart Summary End -------");
@@ -265,11 +206,12 @@ ${extractedText}
     return {
       success: true,
       data: {
-        id: genRow.id,
-        resultText,
-        resultJson,
+        id: saveResponse.data!.id,
+        resultText: saveResponse.data!.resultText,
+        resultJson: saveResponse.data!.resultJson,
       },
       message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
+      error: undefined,
     };
   } catch (error: any) {
     console.error("[Study Copilot] Unexpected Error:", error);
@@ -419,54 +361,16 @@ Required format:
       };
     }
 
-    let resultJson = null;
-    if (generationType === "mcq") {
-      try {
-        const cleanedJsonText = resultText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-        resultJson = JSON.parse(cleanedJsonText);
-      } catch (e) {
-        devLog("Failed to parse MCQ JSON:", e);
-      }
-    }
+    // Shared Save
+    const saveResponse = await saveAIGenerationResult({
+      userId,
+      noteId,
+      generationType,
+      rawOutput: resultText,
+    });
 
-    // Save success result
-    const { data: genRow, error: genError } = await supabase
-      .from("ai_generations")
-      .insert({
-        user_id: userId,
-        note_id: noteId,
-        generation_type: generationType,
-        status: "completed",
-        result_text: resultText,
-        result_json: resultJson,
-      })
-      .select("id")
-      .single();
-
-    if (genError) {
-      return { success: false, error: { message: "Failed to save generation result." } };
-    }
-
-    // Increment Usage
-    const monthKey = new Date().toISOString().slice(0, 7) + "-01";
-    const { data: usageData } = await supabase
-      .from("ai_usage")
-      .select("id, generations_count")
-      .eq("user_id", userId)
-      .eq("month", monthKey)
-      .single();
-
-    if (usageData) {
-      await supabase
-        .from("ai_usage")
-        .update({ generations_count: usageData.generations_count + 1 })
-        .eq("id", usageData.id);
-    } else {
-      await supabase.from("ai_usage").insert({
-        user_id: userId,
-        month: monthKey,
-        generations_count: 1,
-      });
+    if (!saveResponse.success) {
+      return saveResponse;
     }
 
     devLog("------- Document Fallback Summary End -------");
@@ -474,14 +378,105 @@ Required format:
     return {
       success: true,
       data: {
-        id: genRow.id,
-        resultText,
-        resultJson,
+        id: saveResponse.data!.id,
+        resultText: saveResponse.data!.resultText,
+        resultJson: saveResponse.data!.resultJson,
       },
       message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
+      error: undefined,
     };
-  } catch (error: any) {
+} catch (error: any) {
     console.error("[Study Copilot] Fallback Error:", error);
     return { success: false, error: { message: "An unexpected error occurred during document reading." } };
   }
+}
+
+async function saveAIGenerationResult({
+  userId,
+  noteId,
+  generationType,
+  rawOutput,
+}: {
+  userId: string;
+  noteId: string;
+  generationType: GenerationType;
+  rawOutput: string;
+}) {
+  let resultJson = null;
+  let finalResultText: string | null = rawOutput.trim();
+
+  if (!finalResultText) {
+    return { success: false, error: { message: "Generation returned no readable result. Please try again." } };
+  }
+
+  if (generationType === "mcq") {
+    const parsed = parseMCQResult(finalResultText, null);
+    devLog("[MCQ Save] raw output length:", finalResultText?.length ?? 0);
+    if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+      resultJson = { questions: parsed };
+      finalResultText = null; // result_json is the source of truth; no need to duplicate
+      devLog("[MCQ Save] parse succeeded, questions:", parsed.length);
+    } else {
+      // Parse failed — keep raw text so client-side tolerant parser can try
+      devLog("[MCQ Save] MCQ JSON parse completely failed, storing raw fallback in result_text");
+      resultJson = null;
+    }
+  }
+
+  if (!resultJson && !finalResultText) {
+    return { success: false, error: { message: "Generation returned empty results. Please try again." } };
+  }
+
+  // 1. Database Save
+  const { data: genRow, error: genError } = await supabase
+    .from("ai_generations")
+    .insert({
+      user_id: userId,
+      note_id: noteId,
+      generation_type: generationType,
+      status: "completed",
+      result_text: finalResultText || null,
+      result_json: resultJson,
+    })
+    .select("id")
+    .single();
+
+  if (genError) {
+    console.error("[Study Copilot] DB Save Error:", genError);
+    return { success: false, error: { message: "Failed to save generation result." } };
+  }
+
+  devLog("[Study Copilot Save] generationType:", generationType, "generationId:", genRow.id, "hasResultJson:", !!resultJson, "hasResultText:", !!finalResultText, "questionCount:", resultJson && (resultJson as any).questions ? (resultJson as any).questions.length : "N/A");
+
+  // 2. Increment Usage
+  const monthKey = new Date().toISOString().slice(0, 7) + "-01";
+  const { data: usageData } = await supabase
+    .from("ai_usage")
+    .select("id, generations_count")
+    .eq("user_id", userId)
+    .eq("month", monthKey)
+    .single();
+
+  if (usageData) {
+    await supabase
+      .from("ai_usage")
+      .update({ generations_count: usageData.generations_count + 1 })
+      .eq("id", usageData.id);
+  } else {
+    await supabase.from("ai_usage").insert({
+      user_id: userId,
+      month: monthKey,
+      generations_count: 1,
+    });
+  }
+
+  return { 
+    success: true, 
+    data: {
+      id: genRow.id, 
+      resultText: finalResultText, 
+      resultJson 
+    },
+    message: undefined
+  };
 }
