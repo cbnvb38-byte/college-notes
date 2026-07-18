@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { STUDY_TOOLS, StudyToolGroup } from "@/lib/ai/study-tools";
 import { getMyAIGenerations } from "@/app/actions/copilot-history";
-import { SavedSummaryCard } from "@/components/study-copilot/saved-summary-card";
+import { SavedResultsLibrary } from "@/components/study-copilot/saved-results-library";
 
 export const dynamic = "force-dynamic";
 
@@ -261,12 +261,15 @@ export default async function StudyCopilotPage() {
         {/* ── C. Saved Summaries ── */}
         <div className="flex flex-col gap-5">
           <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-indigo-400" />
-              <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Saved Results</h2>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-indigo-400" />
+                <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Saved Results</h2>
+              </div>
+              <p className="text-xs text-zinc-500">Your generated summaries and practice quizzes.</p>
             </div>
             {hasSaved && (
-              <span className="text-[10px] text-zinc-500 bg-zinc-900/50 border border-zinc-800 px-2.5 py-1 rounded-full font-medium">
+              <span className="text-[10px] text-zinc-500 bg-zinc-900/50 border border-zinc-800 px-2.5 py-1 rounded-full font-medium shrink-0">
                 {savedData.length} saved
               </span>
             )}
@@ -295,11 +298,7 @@ export default async function StudyCopilotPage() {
               </Link>
             </div>
           ) : (
-            <div className="flex flex-col gap-4">
-              {savedData.map((gen) => (
-                <SavedSummaryCard key={gen.id} generation={gen} />
-              ))}
-            </div>
+            <SavedResultsLibrary savedData={savedData} />
           )}
         </div>
 

@@ -144,3 +144,38 @@ export async function getAIGenerationById(generationId: string): Promise<
     return { success: false, error: "An unexpected error occurred." };
   }
 }
+
+// ─── Delete a Saved Generation ────────────────────────────────────────────────
+
+export async function deleteAIGenerationAction(generationId: string): Promise<
+  { success: true } | { success: false; error: string }
+> {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return { success: false, error: "Unauthorized." };
+    }
+
+    if (!generationId) {
+      return { success: false, error: "Generation ID is required." };
+    }
+
+    const supabase = makeClient();
+
+    // The query enforces that a user can only delete their own generations
+    const { error } = await supabase
+      .from("ai_generations")
+      .delete()
+      .match({ id: generationId, user_id: userId });
+
+    if (error) {
+      console.error("[copilot-history] deleteAIGenerationAction:", error);
+      return { success: false, error: "Failed to delete saved result." };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("[copilot-history] deleteAIGenerationAction unexpected:", err);
+    return { success: false, error: "An unexpected error occurred." };
+  }
+}

@@ -2,16 +2,20 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Sparkles, Clock, Copy, Check, FileText, ExternalLink, ArrowRight, BookOpen } from "lucide-react";
-import { SavedGeneration } from "@/app/actions/copilot-history";
+import { useRouter } from "next/navigation";
+import { Sparkles, Clock, Copy, Check, FileText, ExternalLink, ArrowRight, BookOpen, Trash2, Loader2 } from "lucide-react";
+import { SavedGeneration, deleteAIGenerationAction } from "@/app/actions/copilot-history";
 import { getResultPreview, getCopyableResultText, getGenerationTypeLabel } from "@/lib/ai/result-formatting";
+import { toast } from "sonner";
 
 interface SavedSummaryCardProps {
   generation: SavedGeneration;
 }
 
 export function SavedSummaryCard({ generation }: SavedSummaryCardProps) {
+  const router = useRouter();
   const [copied, setCopied] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const formattedDate = new Date(generation.created_at).toLocaleDateString("en-IN", {
     day: "numeric",
@@ -29,6 +33,26 @@ export function SavedSummaryCard({ generation }: SavedSummaryCardProps) {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // silent
+    }
+  };
+
+  const handleDelete = async () => {
+    const confirmed = window.confirm("Delete this saved result? This cannot be undone.");
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await deleteAIGenerationAction(generation.id);
+      if (res.success) {
+        toast.success("Saved result deleted.");
+        router.refresh();
+      } else {
+        toast.error(res.error || "Could not delete saved result. Please try again.");
+      }
+    } catch {
+      toast.error("Could not delete saved result. Please try again.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -69,6 +93,19 @@ export function SavedSummaryCard({ generation }: SavedSummaryCardProps) {
             <Check className="h-3.5 w-3.5 text-emerald-400" />
           ) : (
             <Copy className="h-3.5 w-3.5" />
+          )}
+        </button>
+
+        <button
+          onClick={handleDelete}
+          disabled={isDeleting}
+          title="Delete saved result"
+          className="flex items-center gap-1 text-[11px] font-semibold text-zinc-500 hover:text-red-400 border border-zinc-700/50 hover:border-red-500/30 bg-zinc-800/40 hover:bg-red-500/10 px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50"
+        >
+          {isDeleting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Trash2 className="h-3.5 w-3.5" />
           )}
         </button>
 
