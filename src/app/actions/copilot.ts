@@ -70,7 +70,7 @@ export async function generateStudyMaterialAction(
 
     // 3. Reusable Text Extraction Pipeline
     const contentResult = await getStudyContentForNote(noteId, note.file_path);
-    
+
     if (contentResult.needsDocumentFallback) {
       // Pass this directly to the frontend so it knows to show the fallback UI
       return {
@@ -78,7 +78,7 @@ export async function generateStudyMaterialAction(
         error: { message: contentResult.message, code: contentResult.code }
       };
     }
-    
+
     const extractedText = contentResult.contentMarkdown;
 
     // 4. Gemini Configuration & Invocation
@@ -249,7 +249,7 @@ export async function generateWithDocumentFallback(noteId: string, generationTyp
     }
 
     devLog("------- Document Fallback Summary Start -------");
-    
+
     // Download PDF from storage
     const { data: fileData, error: downloadError } = await supabase.storage
       .from("notes")
@@ -275,7 +275,7 @@ export async function generateWithDocumentFallback(noteId: string, generationTyp
     const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
     let prompt = "";
-    
+
     if (generationType === "summary") {
       prompt = `You are Study Copilot. Read the uploaded PDF document. It may be scanned or image-based. Use document understanding/OCR to extract the readable study content. Create a Smart Summary using only the document content. Do not add outside facts.
 
@@ -344,7 +344,7 @@ Required format:
       if (!resultText) {
         return { success: false, error: { message: "Gemini returned an empty response." } };
       }
-      
+
       // If model returned the fallback string, throw our own error
       if (resultText.toLowerCase().includes("could not be read")) {
         return {
@@ -352,7 +352,7 @@ Required format:
           error: { message: "This scanned PDF could not be read clearly. Please upload a clearer scan or a text-based PDF." }
         };
       }
-      
+
     } catch (genError: any) {
       console.error("[Study Copilot] Gemini Fallback Error:", genError);
       return {
@@ -385,7 +385,7 @@ Required format:
       message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
       error: undefined,
     };
-} catch (error: any) {
+  } catch (error: any) {
     console.error("[Study Copilot] Fallback Error:", error);
     return { success: false, error: { message: "An unexpected error occurred during document reading." } };
   }
@@ -446,7 +446,7 @@ async function saveAIGenerationResult({
     return { success: false, error: { message: "Failed to save generation result." } };
   }
 
-  devLog("[Study Copilot Save] generationType:", generationType, "generationId:", genRow.id, "hasResultJson:", !!resultJson, "hasResultText:", !!finalResultText, "questionCount:", resultJson && (resultJson as any).questions ? (resultJson as any).questions.length : "N/A");
+  devLog("[Study Copilot Generate] generationType:", generationType, "noteId:", noteId, "generationId:", genRow.id, "hasResultJson:", !!resultJson, "hasResultText:", !!finalResultText, "questionCount:", resultJson && (resultJson as any).questions ? (resultJson as any).questions.length : "N/A");
 
   // 2. Increment Usage
   const monthKey = new Date().toISOString().slice(0, 7) + "-01";
@@ -470,12 +470,12 @@ async function saveAIGenerationResult({
     });
   }
 
-  return { 
-    success: true, 
+  return {
+    success: true,
     data: {
-      id: genRow.id, 
-      resultText: finalResultText, 
-      resultJson 
+      id: genRow.id,
+      resultText: finalResultText,
+      resultJson
     },
     message: undefined
   };
