@@ -36,15 +36,15 @@ export async function getMyAIGenerations(): Promise<
 
     const supabase = makeClient();
 
-    // Fetch generations (summary type only, newest first)
+    // Fetch all completed generations (summary, mcq, etc.) — newest first
     const { data: generations, error: genError } = await supabase
       .from("ai_generations")
       .select("id, note_id, generation_type, status, result_text, result_json, created_at")
       .eq("user_id", userId)
-      .eq("generation_type", "summary")
+      .in("generation_type", ["summary", "mcq"])
       .eq("status", "completed")
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(50);
 
     if (genError) {
       console.error("[copilot-history] getMyAIGenerations:", genError);

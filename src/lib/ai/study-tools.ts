@@ -48,8 +48,8 @@ export const STUDY_TOOLS: StudyToolConfig[] = [
     group: "Practice",
     priority: "primary",
     icon: BookOpen,
-    status: "Coming later",
-    enabled: false,
+    status: "Active",
+    enabled: true,
   },
   {
     id: "flashcards",

@@ -110,7 +110,7 @@ export default async function GenerationReaderPage({ params }: PageProps) {
             </span>
           </div>
           <h1 className="text-xl font-black text-zinc-100 tracking-tight leading-tight">
-            Generated Study Summary
+            {gen.generation_type === "mcq" ? "Generated Practice Quiz" : "Generated Study Summary"}
           </h1>
           <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
             <span>

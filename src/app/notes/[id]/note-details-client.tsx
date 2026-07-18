@@ -29,7 +29,7 @@ import { useAuth } from "@clerk/nextjs";
 import { submitRating, removeRating } from "@/app/actions/ratings";
 import { ReviewsSection } from "./reviews-section";
 import { reportNote } from "@/app/actions/reports";
-import { generateStudyMaterialAction, generateSummaryWithDocumentFallback } from "@/app/actions/copilot";
+import { generateStudyMaterialAction, generateWithDocumentFallback } from "@/app/actions/copilot";
 import { STUDY_TOOLS } from "@/lib/ai/study-tools";
 import { GenerationType } from "@/lib/ai/types";
 import { Check } from "lucide-react";
@@ -111,8 +111,9 @@ export default function NoteDetailsClient({
   // Note generation state
   const [isGenerating, setIsGenerating] = useState<GenerationType | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
-  const [generatedResult, setGeneratedResult] = useState<{ type: GenerationType, text: string, id: string } | null>(null);
+  const [generatedResult, setGeneratedResult] = useState<{ type: GenerationType, text: string, json?: Record<string, unknown> | null, id: string } | null>(null);
   const [showScannedConfirmation, setShowScannedConfirmation] = useState(false);
+  const [fallbackGenerationType, setFallbackGenerationType] = useState<GenerationType | null>(null);
 
   // Counters & Interactive States
   const [note, setNote] = useState<NoteDetails>(initialNote);
@@ -301,8 +302,8 @@ export default function NoteDetailsClient({
       return;
     }
     
-    // For now, only summary is enabled.
-    if (generationType !== "summary") {
+    // For now, only summary and mcq are enabled.
+    if (generationType !== "summary" && generationType !== "mcq") {
       toast.info("This feature will be enabled in a later phase.");
       return;
     }
@@ -316,9 +317,10 @@ export default function NoteDetailsClient({
       
       if (res.success && res.data) {
         toast.success(res.message || "Generated successfully.");
-        setGeneratedResult({ type: generationType, text: res.data.resultText, id: res.data.id });
+        setGeneratedResult({ type: generationType, text: res.data.resultText, json: res.data.resultJson, id: res.data.id });
       } else {
         if (res.error?.code === "SCANNED_PDF_CONFIRM_REQUIRED") {
+          setFallbackGenerationType(generationType);
           setShowScannedConfirmation(true);
         } else {
           const errorMsg = res.error?.message || "Failed to generate study material.";
@@ -341,16 +343,18 @@ export default function NoteDetailsClient({
       return;
     }
     
-    setIsGenerating("summary");
+    if (!fallbackGenerationType) return;
+    
+    setIsGenerating(fallbackGenerationType);
     setGenerateError(null);
     setShowScannedConfirmation(false);
     
     try {
-      const res = await generateSummaryWithDocumentFallback(note.id);
+      const res = await generateWithDocumentFallback(note.id, fallbackGenerationType);
       
       if (res.success && res.data) {
         toast.success(res.message || "Generated successfully.");
-        setGeneratedResult({ type: "summary", text: res.data.resultText, id: res.data.id });
+        setGeneratedResult({ type: fallbackGenerationType, text: res.data.resultText, json: res.data.resultJson, id: res.data.id });
       } else {
         const errorMsg = res.error?.message || "Failed to generate study material.";
         setGenerateError(errorMsg);
@@ -780,7 +784,7 @@ export default function NoteDetailsClient({
                   <div className="flex items-center gap-2">
                     <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                     <p className="text-[11px] text-emerald-300 font-semibold leading-snug">
-                      Summary saved to Study Copilot history.
+                      {generatedResult.type === "mcq" ? "Practice Quiz" : "Summary"} saved to Study Copilot history.
                     </p>
                   </div>
                   <div className="flex gap-2 pl-5">
@@ -794,10 +798,10 @@ export default function NoteDetailsClient({
                       text={getCopyableResultText({
                         id: generatedResult.id,
                         note_id: note.id,
-                        generation_type: "summary",
+                        generation_type: generatedResult.type,
                         status: "completed",
                         result_text: generatedResult.text,
-                        result_json: null,
+                        result_json: generatedResult.json || null,
                         created_at: new Date().toISOString(),
                         note_title: note.title
                       })} 

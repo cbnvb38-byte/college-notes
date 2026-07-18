@@ -34,7 +34,7 @@ export async function generateStudyMaterialAction(
       return { success: false, error: { message: "Note ID is required." } };
     }
 
-    if (generationType !== "summary") {
+    if (generationType !== "summary" && generationType !== "mcq") {
       return {
         success: false,
         error: { message: "This tool will be enabled in a later Phase 8 step." },
@@ -96,7 +96,10 @@ export async function generateStudyMaterialAction(
     const ai = new GoogleGenAI({ apiKey });
     const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
-    const prompt = `You are an expert AI Study Assistant.
+    let prompt = "";
+
+    if (generationType === "summary") {
+      prompt = `You are an expert AI Study Assistant.
 Your task is to create a clean, comprehensive study summary of the provided text.
 Use ONLY the information in the provided text. Do not add outside facts.
 
@@ -119,6 +122,39 @@ Provided Text:
 """
 ${extractedText}
 """`;
+    } else if (generationType === "mcq") {
+      prompt = `You are an expert AI Study Assistant.
+Your task is to generate 10 high-quality multiple choice questions (MCQs) from the provided text.
+Use ONLY the information in the provided text. Do not add outside facts.
+
+Return ONLY valid JSON.
+Do not wrap in markdown.
+Do not add explanation outside JSON.
+Generate exactly 10 MCQs unless content is too short.
+Include mathematical expressions using LaTeX syntax (use $...$ for inline).
+Keep LaTeX valid. Escape LaTeX backslashes correctly for JSON strings (e.g., use \\\\frac instead of \\frac).
+Do not output raw markdown code fences.
+Do not output prose before or after JSON.
+
+Required format:
+{
+"questions": [
+{
+"question": "Question text. Use $...$ for inline math.",
+"options": ["Option A", "Option B", "Option C", "Option D"],
+"answer": "Correct option text",
+"explanation": "Why this answer is correct.",
+"difficulty": "easy|medium|hard",
+"topic": "Topic name"
+}
+]
+}
+
+Provided Text:
+"""
+${extractedText}
+"""`;
+    }
 
     let resultText = "";
     try {
@@ -153,15 +189,44 @@ ${extractedText}
       };
     }
 
+    let resultJson = null;
+    let finalResultText = resultText;
+    if (generationType === "mcq") {
+      try {
+        let textToParse = resultText.trim();
+        const jsonFenceMatch = /```json\s*([\s\S]*?)\s*```/i.exec(textToParse);
+        if (jsonFenceMatch && jsonFenceMatch[1]) {
+          textToParse = jsonFenceMatch[1].trim();
+        } else if (!textToParse.startsWith("{")) {
+          const firstBrace = textToParse.indexOf("{");
+          const lastBrace = textToParse.lastIndexOf("}");
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            textToParse = textToParse.slice(firstBrace, lastBrace + 1);
+          }
+        }
+        
+        // Basic pre-repair: if Gemini sent single backslashes in JSON (invalid JSON escape)
+        // This is a naive repair for the most common ones before parsing
+        textToParse = textToParse.replace(/(?<!\\)\\([a-zA-Z])/g, "\\\\$1");
+        
+        resultJson = JSON.parse(textToParse);
+        finalResultText = ""; // We successfully parsed it, no need to store giant raw JSON in text
+      } catch (e) {
+        devLog("Failed to parse MCQ JSON:", e);
+        // On failure, resultJson is null, finalResultText remains the raw string for tolerant client-side parsing
+      }
+    }
+
     // 5. Database Save
     const { data: genRow, error: genError } = await supabase
       .from("ai_generations")
       .insert({
         user_id: userId,
         note_id: noteId,
-        generation_type: "summary",
+        generation_type: generationType,
         status: "completed",
-        result_text: resultText,
+        result_text: finalResultText || null,
+        result_json: resultJson,
       })
       .select("id")
       .single();
@@ -202,8 +267,9 @@ ${extractedText}
       data: {
         id: genRow.id,
         resultText,
+        resultJson,
       },
-      message: "Summary generated and saved to Study Copilot.",
+      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
     };
   } catch (error: any) {
     console.error("[Study Copilot] Unexpected Error:", error);
@@ -211,7 +277,7 @@ ${extractedText}
   }
 }
 
-export async function generateSummaryWithDocumentFallback(noteId: string) {
+export async function generateWithDocumentFallback(noteId: string, generationType: GenerationType) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -266,7 +332,10 @@ export async function generateSummaryWithDocumentFallback(noteId: string) {
     const ai = new GoogleGenAI({ apiKey });
     const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
-    const prompt = `You are Study Copilot. Read the uploaded PDF document. It may be scanned or image-based. Use document understanding/OCR to extract the readable study content. Create a Smart Summary using only the document content. Do not add outside facts.
+    let prompt = "";
+    
+    if (generationType === "summary") {
+      prompt = `You are Study Copilot. Read the uploaded PDF document. It may be scanned or image-based. Use document understanding/OCR to extract the readable study content. Create a Smart Summary using only the document content. Do not add outside facts.
 
 Formatting Rules:
 - Use Markdown headings.
@@ -284,6 +353,34 @@ Return these sections:
 ## Revision Tip
 
 If the document is unreadable, blurry, or does not contain enough study content, say clearly that the document could not be read.`;
+    } else if (generationType === "mcq") {
+      prompt = `You are Study Copilot. Read the uploaded PDF document. It may be scanned or image-based. Use document understanding/OCR to extract the readable study content.
+Generate 10 high-quality multiple choice questions (MCQs) from the document content.
+Use ONLY the information in the provided document. Do not add outside facts. If the document is unreadable, blurry, or does not contain enough study content, say clearly that the document could not be read.
+
+Return ONLY valid JSON.
+Do not wrap in markdown.
+Do not add explanation outside JSON.
+Generate exactly 10 MCQs unless content is too short.
+Include mathematical expressions using LaTeX syntax (use $...$ for inline).
+Keep LaTeX valid. Escape LaTeX backslashes correctly for JSON strings (e.g., use \\\\frac instead of \\frac).
+Do not output raw markdown code fences.
+Do not output prose before or after JSON.
+
+Required format:
+{
+"questions": [
+{
+"question": "Question text. Use $...$ for inline math.",
+"options": ["Option A", "Option B", "Option C", "Option D"],
+"answer": "Correct option text",
+"explanation": "Why this answer is correct.",
+"difficulty": "easy|medium|hard",
+"topic": "Topic name"
+}
+]
+}`;
+    }
 
     devLog("Calling Gemini with PDF inlineData...");
     let resultText = "";
@@ -322,15 +419,26 @@ If the document is unreadable, blurry, or does not contain enough study content,
       };
     }
 
+    let resultJson = null;
+    if (generationType === "mcq") {
+      try {
+        const cleanedJsonText = resultText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        resultJson = JSON.parse(cleanedJsonText);
+      } catch (e) {
+        devLog("Failed to parse MCQ JSON:", e);
+      }
+    }
+
     // Save success result
     const { data: genRow, error: genError } = await supabase
       .from("ai_generations")
       .insert({
         user_id: userId,
         note_id: noteId,
-        generation_type: "summary",
+        generation_type: generationType,
         status: "completed",
         result_text: resultText,
+        result_json: resultJson,
       })
       .select("id")
       .single();
@@ -368,8 +476,9 @@ If the document is unreadable, blurry, or does not contain enough study content,
       data: {
         id: genRow.id,
         resultText,
+        resultJson,
       },
-      message: "Summary generated and saved to Study Copilot.",
+      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
     };
   } catch (error: any) {
     console.error("[Study Copilot] Fallback Error:", error);

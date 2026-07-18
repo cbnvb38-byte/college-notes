@@ -78,7 +78,19 @@ export function parseSummarySections(resultText: string | null, resultJson: Reco
 }
 
 export function getResultPreview(generation: SavedGeneration): string {
-  const text = safelyExtractText(generation.result_text, generation.result_json);
+  if (generation.generation_type === "mcq") {
+    const questions = parseMCQResult(generation.result_text, generation.result_json as Record<string, unknown> | null);
+    if (questions && questions.length > 0) {
+      const topics = Array.from(new Set(questions.map((q: any) => q.topic).filter(Boolean)));
+      let topicStr = "";
+      if (topics.length > 0) {
+        topicStr = ` • ${topics.slice(0, 3).join(", ")}`;
+      }
+      return `${questions.length} questions generated${topicStr}`;
+    }
+  }
+
+  const text = safelyExtractText(generation.result_text, generation.result_json as Record<string, unknown> | null);
   
   if (!text || (text.trim().startsWith("{") && text.trim().endsWith("}"))) {
     return "This saved result has no readable content.";
@@ -94,22 +106,139 @@ export function getResultPreview(generation: SavedGeneration): string {
   return preview || "No content.";
 }
 
-export function getCopyableResultText(generation: SavedGeneration): string {
-  const text = safelyExtractText(generation.result_text, generation.result_json);
-  
-  if (!text || (text.trim().startsWith("{") && text.trim().endsWith("}"))) {
-    return "This saved result has no readable content.";
+export function parseMCQResult(resultText: string | null, resultJson: Record<string, unknown> | null): any[] | null {
+  let parsed: any = null;
+
+  // 1. Check result_json
+  if (resultJson) {
+    if (resultJson.questions) parsed = resultJson;
+    else if (resultJson.mcqs) parsed = { questions: resultJson.mcqs };
+    else if (resultJson.quiz) parsed = { questions: resultJson.quiz };
+    else if (resultJson.items) parsed = { questions: resultJson.items };
+    else parsed = resultJson; // might be just array of questions? handled later
   }
 
-  const sections = parseSummarySections(generation.result_text, generation.result_json);
+  // 2. Check resultText
+  if (!parsed && resultText) {
+    let textToParse = resultText.trim();
+    
+    // Check for markdown code fences
+    const jsonFenceMatch = /```json\s*([\s\S]*?)\s*```/i.exec(textToParse);
+    if (jsonFenceMatch && jsonFenceMatch[1]) {
+      textToParse = jsonFenceMatch[1].trim();
+    } else if (textToParse.startsWith("{") && textToParse.endsWith("}")) {
+      // It's just a JSON string
+    } else {
+      // Find the first { and last }
+      const firstBrace = textToParse.indexOf("{");
+      const lastBrace = textToParse.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        textToParse = textToParse.slice(firstBrace, lastBrace + 1);
+      }
+    }
+    // Tolerant LaTeX repair: replace single unescaped backslashes with double backslashes
+    textToParse = textToParse.replace(/(?<!\\)\\([a-zA-Z])/g, "\\\\$1");
+
+    try {
+      parsed = JSON.parse(textToParse);
+      if (parsed.mcqs) parsed.questions = parsed.mcqs;
+      else if (parsed.quiz) parsed.questions = parsed.quiz;
+      else if (parsed.items) parsed.questions = parsed.items;
+    } catch {
+      // Parsing failed. Attempt regex extraction as a last resort.
+      try {
+        const questionsMatch = textToParse.match(/"questions"\s*:\s*(\[[^]*\])/i);
+        if (questionsMatch && questionsMatch[1]) {
+          parsed = { questions: JSON.parse(questionsMatch[1]) };
+        }
+      } catch {
+        // completely failed
+      }
+    }
+  }
+
+  if (!parsed) return null;
+
+  let rawQuestions: any[] = [];
+  if (Array.isArray(parsed)) {
+    rawQuestions = parsed;
+  } else if (Array.isArray(parsed.questions)) {
+    rawQuestions = parsed.questions;
+  } else if (Array.isArray(parsed.mcqs)) {
+    rawQuestions = parsed.mcqs;
+  } else if (Array.isArray(parsed.quiz)) {
+    rawQuestions = parsed.quiz;
+  } else if (Array.isArray(parsed.items)) {
+    rawQuestions = parsed.items;
+  } else {
+    return null;
+  }
+
+  // Normalize each question
+  return rawQuestions.map((q: any) => {
+    const optionsRaw = q.options || q.choices || [];
+    let options: string[] = [];
+    
+    if (Array.isArray(optionsRaw)) {
+      options = optionsRaw.map(String);
+    } else if (typeof optionsRaw === "object" && optionsRaw !== null) {
+      options = Object.values(optionsRaw).map(String);
+    }
+
+    let answer = String(q.answer || q.correctAnswer || q.correct_answer || "");
+    
+    // If answer is just a letter like "A" or "B" and options exists
+    if (/^[A-Z]$/i.test(answer) && options.length > 0) {
+      const idx = answer.toUpperCase().charCodeAt(0) - 65;
+      if (idx >= 0 && idx < options.length) {
+        answer = `${answer.toUpperCase()}. ${options[idx]}`;
+      }
+    }
+
+    return {
+      question: String(q.question || ""),
+      options,
+      answer,
+      explanation: String(q.explanation || ""),
+      difficulty: q.difficulty || "medium",
+      topic: q.topic || "",
+    };
+  });
+}
+
+export function getCopyableResultText(generation: SavedGeneration): string {
   const lines: string[] = [];
-  
   const typeLabel = getGenerationTypeLabel(generation.generation_type);
+  
   if (generation.note_title) {
     lines.push(`${typeLabel} — ${generation.note_title}`);
     lines.push("=".repeat(60));
     lines.push("");
   }
+
+  if (generation.generation_type === "mcq") {
+    const questions = parseMCQResult(generation.result_text, generation.result_json as Record<string, unknown> | null);
+    if (questions && questions.length > 0) {
+      questions.forEach((q: any, i: number) => {
+        lines.push(`Q${i + 1}. ${q.question}`);
+        const labels = ["A", "B", "C", "D", "E", "F"];
+        (q.options || []).forEach((opt: string, optIdx: number) => {
+          lines.push(`${labels[optIdx] || "-"}. ${opt}`);
+        });
+        lines.push(`Answer: ${q.answer}`);
+        lines.push(`Explanation: ${q.explanation}`);
+        lines.push("");
+      });
+      return lines.join("\n").trim();
+    }
+  }
+
+  const text = safelyExtractText(generation.result_text, generation.result_json as Record<string, unknown> | null);
+  if (!text || (text.trim().startsWith("{") && text.trim().endsWith("}"))) {
+    return "This saved result has no readable content.";
+  }
+
+  const sections = parseSummarySections(generation.result_text, generation.result_json as Record<string, unknown> | null);
   
   for (const s of sections) {
     lines.push(s.heading.toUpperCase());
@@ -121,5 +250,6 @@ export function getCopyableResultText(generation: SavedGeneration): string {
 
 export function getGenerationTypeLabel(type: string): string {
   if (type === "summary") return "Smart Summary";
+  if (type === "mcq") return "Practice Quiz";
   return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }

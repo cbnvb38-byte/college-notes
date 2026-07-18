@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Sparkles, Clock, Copy, Check, FileText, ExternalLink, ArrowRight } from "lucide-react";
+import { Sparkles, Clock, Copy, Check, FileText, ExternalLink, ArrowRight, BookOpen } from "lucide-react";
 import { SavedGeneration } from "@/app/actions/copilot-history";
-import { getResultPreview, getCopyableResultText } from "@/lib/ai/result-formatting";
+import { getResultPreview, getCopyableResultText, getGenerationTypeLabel } from "@/lib/ai/result-formatting";
 
 interface SavedSummaryCardProps {
   generation: SavedGeneration;
@@ -36,7 +36,11 @@ export function SavedSummaryCard({ generation }: SavedSummaryCardProps) {
     <div className="flex items-start gap-4 px-5 py-4 rounded-2xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm hover:bg-zinc-900/60 transition-colors group">
       {/* Icon */}
       <div className="bg-indigo-500/10 p-2.5 rounded-xl border border-indigo-500/20 shrink-0 mt-0.5">
-        <FileText className="h-4 w-4 text-indigo-400" />
+        {generation.generation_type === "mcq" ? (
+          <BookOpen className="h-4 w-4 text-indigo-400" />
+        ) : (
+          <FileText className="h-4 w-4 text-indigo-400" />
+        )}
       </div>
 
       {/* Meta */}
@@ -44,7 +48,7 @@ export function SavedSummaryCard({ generation }: SavedSummaryCardProps) {
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 px-2 py-0.5 rounded-full">
             <Sparkles className="h-2.5 w-2.5" />
-            Smart Summary
+            {getGenerationTypeLabel(generation.generation_type)}
           </span>
           <span className="text-[10px] text-zinc-600 flex items-center gap-1">
             <Clock className="h-3 w-3" /> {formattedDate}

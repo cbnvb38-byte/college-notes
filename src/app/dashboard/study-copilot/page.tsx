@@ -263,7 +263,7 @@ export default async function StudyCopilotPage() {
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               <BookOpen className="h-5 w-5 text-indigo-400" />
-              <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Saved Summaries</h2>
+              <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Saved Results</h2>
             </div>
             {hasSaved && (
               <span className="text-[10px] text-zinc-500 bg-zinc-900/50 border border-zinc-800 px-2.5 py-1 rounded-full font-medium">
@@ -281,10 +281,11 @@ export default async function StudyCopilotPage() {
               <div className="bg-zinc-900/50 p-4 rounded-full border border-zinc-800">
                 <Sparkles className="h-6 w-6 text-zinc-600" />
               </div>
-              <p className="text-sm font-semibold text-zinc-400">No saved summaries yet</p>
+              <p className="text-sm font-semibold text-zinc-400">No saved results yet</p>
               <p className="text-xs text-zinc-600 max-w-xs">
-                Open any approved note and click{" "}
-                <span className="text-zinc-400 font-medium">Smart Summary</span> to generate your first AI study document.
+                Open any approved note and use{" "}
+                <span className="text-zinc-400 font-medium">Smart Summary</span> or{" "}
+                <span className="text-zinc-400 font-medium">Practice Quiz</span> to generate your first AI study material.
               </p>
               <Link
                 href="/dashboard/browse"
@@ -368,10 +369,10 @@ export default async function StudyCopilotPage() {
             <div className="flex flex-col gap-0.5 flex-1 min-w-0">
               <span className="text-sm font-bold text-zinc-200">Usage &amp; Limits</span>
               <span className="text-xs text-zinc-500">
-                Usage tracking is active for Smart Summary generations.{" "}
+                Usage tracking is active for all Study Copilot tools.{" "}
                 {hasSaved && (
                   <span className="text-zinc-400">
-                    You have generated {savedData.length} summar{savedData.length === 1 ? "y" : "ies"} so far.
+                    You have {savedData.length} saved result{savedData.length === 1 ? "" : "s"} so far.
                   </span>
                 )}
               </span>
