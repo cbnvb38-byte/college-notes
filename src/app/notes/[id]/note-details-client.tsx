@@ -693,7 +693,7 @@ export default function NoteDetailsClient({
                         <span className="flex items-center gap-2 font-bold text-xs text-zinc-100">
                           {isGenerating === tool.generationType ? <Loader2 className="h-4 w-4 text-indigo-400 animate-spin" /> : <Icon className="h-4 w-4 text-indigo-400" />} 
                           {isGenerating === tool.generationType && showScannedConfirmation === false ? (
-                            "Generating " + tool.title + "..."
+                            tool.generationType === "doubt_answer" ? "Answering Doubt..." : "Generating " + tool.title + "..."
                           ) : (
                             tool.title
                           )}
@@ -745,7 +745,7 @@ export default function NoteDetailsClient({
                           <span className="flex items-center gap-1.5 font-bold text-[11px] text-zinc-300">
                             {isGenerating === tool.generationType ? <Loader2 className="h-3 w-3 animate-spin text-indigo-400" /> : <Icon className="h-3 w-3" />} 
                             <span className="truncate">
-                              {isGenerating === tool.generationType && showScannedConfirmation === false ? "Generating..." : tool.title}
+                              {isGenerating === tool.generationType && showScannedConfirmation === false ? (tool.generationType === "doubt_answer" ? "Answering Doubt..." : "Generating " + tool.title + "...") : tool.title}
                             </span>
                           </span>
                         </Button>
