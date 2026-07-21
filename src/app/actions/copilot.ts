@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getStudyContentForNote } from "@/lib/ai/document-content";
 import { GoogleGenAI } from "@google/genai";
 import { parseMCQResult, parseFlashcardsResult, parseImportantQuestionsResult, parseDoubtAnswerResult } from "@/lib/ai/result-formatting";
+import { checkAILimitBeforeGeneration, incrementAIUsageAfterSuccess } from "./ai-usage";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -44,6 +45,15 @@ export async function generateStudyMaterialAction(
 
     if (generationType === "doubt_answer" && (!question || !question.trim())) {
       return { success: false, error: { message: "A question is required for Ask Doubt." } };
+    }
+
+    // -- AI Limit Check --
+    const limitCheck = await checkAILimitBeforeGeneration(userId);
+    if (!limitCheck.success) {
+      return { success: false, error: { message: limitCheck.error || "Failed to check limits." } };
+    }
+    if (limitCheck.limitReached) {
+      return { success: false, error: { message: limitCheck.errorMessage || "Limit reached." } };
     }
 
     // 2. Validate note & check approval
@@ -352,6 +362,9 @@ ${extractedText}
       return saveResponse;
     }
 
+    // -- Increment AI Usage --
+    await incrementAIUsageAfterSuccess(userId, saveResponse.data!.id, generationType);
+
     devLog("------- Smart Summary End -------");
 
     return {
@@ -379,6 +392,15 @@ export async function generateWithDocumentFallback(noteId: string, generationTyp
 
     if (!noteId) {
       return { success: false, error: { message: "Note ID is required." } };
+    }
+
+    // -- AI Limit Check --
+    const limitCheck = await checkAILimitBeforeGeneration(userId);
+    if (!limitCheck.success) {
+      return { success: false, error: { message: limitCheck.error || "Failed to check limits." } };
+    }
+    if (limitCheck.limitReached) {
+      return { success: false, error: { message: limitCheck.errorMessage || "Limit reached." } };
     }
 
     const { data: note, error: noteError } = await supabase
@@ -655,6 +677,9 @@ User's Doubt: "${question}"`;
       return saveResponse;
     }
 
+    // -- Increment AI Usage --
+    await incrementAIUsageAfterSuccess(userId, saveResponse.data!.id, generationType);
+
     devLog("------- Document Fallback Summary End -------");
 
     return {
@@ -762,28 +787,6 @@ async function saveAIGenerationResult({
   }
 
   devLog("[Study Copilot Generate] generationType:", generationType, "noteId:", noteId, "generationId:", genRow.id, "hasResultJson:", !!resultJson, "hasResultText:", !!finalResultText, "questionCount:", resultJson && (resultJson as any).questions ? (resultJson as any).questions.length : "N/A");
-
-  // 2. Increment Usage
-  const monthKey = new Date().toISOString().slice(0, 7) + "-01";
-  const { data: usageData } = await supabase
-    .from("ai_usage")
-    .select("id, generations_count")
-    .eq("user_id", userId)
-    .eq("month", monthKey)
-    .single();
-
-  if (usageData) {
-    await supabase
-      .from("ai_usage")
-      .update({ generations_count: usageData.generations_count + 1 })
-      .eq("id", usageData.id);
-  } else {
-    await supabase.from("ai_usage").insert({
-      user_id: userId,
-      month: monthKey,
-      generations_count: 1,
-    });
-  }
 
   return {
     success: true,

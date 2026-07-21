@@ -32,6 +32,7 @@ import { reportNote } from "@/app/actions/reports";
 import { generateStudyMaterialAction, generateWithDocumentFallback } from "@/app/actions/copilot";
 import { STUDY_TOOLS } from "@/lib/ai/study-tools";
 import { GenerationType } from "@/lib/ai/types";
+import { getUserAIUsage, UserAIUsage } from "@/app/actions/ai-usage";
 import { Check } from "lucide-react";
 import { CopyResultButton } from "@/components/study-copilot/copy-result-button";
 import { getCopyableResultText, getGenerationTypeLabel } from "@/lib/ai/result-formatting";
@@ -114,6 +115,10 @@ export default function NoteDetailsClient({
   const [generatedResult, setGeneratedResult] = useState<{ type: GenerationType, text: string, json?: Record<string, unknown> | null, id: string } | null>(null);
   const [showScannedConfirmation, setShowScannedConfirmation] = useState(false);
   const [fallbackGenerationType, setFallbackGenerationType] = useState<GenerationType | null>(null);
+  
+  // AI Limits State
+  const [usageState, setUsageState] = useState<UserAIUsage | null>(null);
+  const [isUsageLoading, setIsUsageLoading] = useState(true);
 
   // Counters & Interactive States
   const [note, setNote] = useState<NoteDetails>(initialNote);
@@ -144,6 +149,21 @@ export default function NoteDetailsClient({
   // Ask Doubt state
   const [isDoubtModalOpen, setIsDoubtModalOpen] = useState(false);
   const [doubtQuestion, setDoubtQuestion] = useState("");
+
+  useEffect(() => {
+    async function loadUsage() {
+      if (!userId) {
+        setIsUsageLoading(false);
+        return;
+      }
+      const res = await getUserAIUsage();
+      if (res.success && res.data) {
+        setUsageState(res.data);
+      }
+      setIsUsageLoading(false);
+    }
+    loadUsage();
+  }, [userId]);
 
   const handleToggleBookmark = async () => {
     if (isBookmarking) return; // Guard against rapid clicks
@@ -301,6 +321,8 @@ export default function NoteDetailsClient({
   };
 
   const handleGenerate = async (generationType: GenerationType, userQuestion?: string) => {
+    if (isGenerating !== null) return;
+    
     if (!userId) {
       toast.error("Please sign in to generate study materials.");
       return;
@@ -309,6 +331,11 @@ export default function NoteDetailsClient({
     // For now, only summary, mcq, flashcards, important_questions, and doubt_answer are enabled.
     if (generationType !== "summary" && generationType !== "mcq" && generationType !== "flashcards" && generationType !== "important_questions" && generationType !== "doubt_answer") {
       toast.info("This feature will be enabled in a later phase.");
+      return;
+    }
+
+    if (usageState && usageState.usedThisMonth >= usageState.monthlyLimit) {
+      toast.error(usageState.plan === "premium" ? "You have reached your premium monthly AI limit for this month." : "You have used all free AI generations for this month.");
       return;
     }
 
@@ -342,6 +369,8 @@ export default function NoteDetailsClient({
   };
 
   const handleDocumentFallback = async () => {
+    if (isGenerating !== null) return;
+
     if (!userId) {
       toast.error("Please sign in to generate study materials.");
       return;
@@ -349,6 +378,11 @@ export default function NoteDetailsClient({
     
     if (!fallbackGenerationType) return;
     
+    if (usageState && usageState.usedThisMonth >= usageState.monthlyLimit) {
+      toast.error(usageState.plan === "premium" ? "You have reached your premium monthly AI limit for this month." : "You have used all free AI generations for this month.");
+      return;
+    }
+
     setIsGenerating(fallbackGenerationType);
     setGenerateError(null);
     setShowScannedConfirmation(false);
@@ -375,6 +409,7 @@ export default function NoteDetailsClient({
 
   const handleAskDoubtSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isGenerating !== null) return;
     if (!doubtQuestion.trim()) {
       toast.error("Please enter a question.");
       return;
@@ -651,7 +686,7 @@ export default function NoteDetailsClient({
                 <CardTitle className="text-sm font-bold text-zinc-100 leading-tight">Study Copilot for this note</CardTitle>
                 <p className="text-[10px] text-zinc-400 mt-1">Generate study material from this uploaded PDF.</p>
                 {/* AI Readiness Badge */}
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
                   {note.file_path ? (
                     <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
                       ✓ AI Ready
@@ -661,14 +696,60 @@ export default function NoteDetailsClient({
                       ⚠ No PDF — AI not available
                     </span>
                   )}
+                  {usageState && (
+                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border ${
+                      usageState.plan === "premium" 
+                        ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                        : "bg-zinc-800 text-zinc-300 border-zinc-700"
+                    }`}>
+                      {usageState.plan === "premium" ? "Premium Plan" : "Free Plan"}
+                    </span>
+                  )}
                 </div>
+                {usageState && (
+                  <p className="text-[10px] text-zinc-400 mt-2 font-medium">
+                    AI Generations: <span className="text-zinc-200">{usageState.usedThisMonth} / {usageState.monthlyLimit}</span> this month
+                  </p>
+                )}
               </div>
             </CardHeader>
 
             <CardContent className="pt-4 pb-5 flex flex-col gap-4 relative z-10">
               
-              {/* Primary Tools */}
-              <div className="flex flex-col gap-2.5">
+              {usageState && usageState.usedThisMonth >= usageState.monthlyLimit ? (
+                <div className="bg-zinc-950/50 border border-red-500/20 p-4 rounded-xl flex flex-col items-center justify-center text-center gap-3">
+                  <div className="bg-red-500/10 p-2 rounded-full">
+                    <FileWarning className="h-5 w-5 text-red-400" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-red-400">Limit Reached</p>
+                    <p className="text-xs text-zinc-400">
+                      {usageState.plan === "premium"
+                        ? "You have used all premium AI generations for this month."
+                        : "You have used all free AI generations for this month."}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 w-full mt-1">
+                    <Link href="/pricing" className="w-full">
+                      <Button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-9 text-xs rounded-lg transition-all active:scale-[0.98]">
+                        Upgrade to Premium
+                      </Button>
+                    </Link>
+                    <Button 
+                      variant="outline" 
+                      className="w-full bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 h-9 text-xs font-bold rounded-lg transition-all"
+                      onClick={() => {
+                        document.getElementById('saved-results-section')?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                    >
+                      View Saved
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Primary Tools */}
+                  <div className="flex flex-col gap-2.5">
                 {STUDY_TOOLS.filter(t => t.priority === "primary").map((tool) => {
                   const Icon = tool.icon;
                   return (
@@ -843,6 +924,8 @@ export default function NoteDetailsClient({
                 </div>
               )}
               
+              </>
+              )}
             </CardContent>
           </Card>
         </div>
