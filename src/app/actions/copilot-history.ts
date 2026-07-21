@@ -179,3 +179,67 @@ export async function deleteAIGenerationAction(generationId: string): Promise<
     return { success: false, error: "An unexpected error occurred." };
   }
 }
+
+// --- Fetch Exam Sprint Status -----------------------------------------------
+
+export async function getExamSprintStatusAction(noteId: string) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return { success: false, error: "Unauthorized." };
+    }
+
+    const supabase = makeClient();
+
+    const { data: note, error: noteError } = await supabase
+      .from("notes")
+      .select("id, title, semester")
+      .eq("id", noteId)
+      .single();
+
+    if (noteError || !note) {
+      return { success: false, error: "Note not found." };
+    }
+
+    const { data: generations, error: genError } = await supabase
+      .from("ai_generations")
+      .select("id, generation_type, status, created_at")
+      .eq("user_id", userId)
+      .eq("note_id", noteId)
+      .in("generation_type", ["summary", "important_questions", "flashcards", "mcq"])
+      .eq("status", "completed")
+      .order("created_at", { ascending: false });
+
+    if (genError) {
+      return { success: false, error: "Failed to load sprint status." };
+    }
+
+    const steps: Record<string, any> = {
+      summary: { status: "missing" },
+      important_questions: { status: "missing" },
+      flashcards: { status: "missing" },
+      mcq: { status: "missing" }
+    };
+
+    if (generations) {
+      // Since it's ordered by created_at DESC, the first one we see for a type is the latest
+      for (const gen of generations) {
+        if (steps[gen.generation_type].status === "missing") {
+          steps[gen.generation_type] = {
+            status: "ready",
+            generationId: gen.id
+          };
+        }
+      }
+    }
+
+    return {
+      success: true,
+      note,
+      steps
+    };
+  } catch (err: any) {
+    console.error("[copilot-history] getExamSprintStatusAction:", err);
+    return { success: false, error: "An unexpected error occurred." };
+  }
+}

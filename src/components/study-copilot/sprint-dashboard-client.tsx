@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
-import { SavedGeneration } from "@/app/actions/copilot-history";
-import { generateWithDocumentFallback } from "@/app/actions/copilot";
+import { SavedGeneration, getExamSprintStatusAction } from "@/app/actions/copilot-history";
+import { generateStudyMaterialAction } from "@/app/actions/copilot";
 import { UserAIUsage } from "@/app/actions/ai-usage";
 import { Button } from "@/components/ui/button";
 import { Check, Loader2, Sparkles, AlertCircle, ArrowRight, BookOpen, Brain, ListOrdered, GraduationCap } from "lucide-react";
@@ -57,7 +57,7 @@ export function SprintDashboardClient({ noteId, noteTitle, existingGenerations, 
   };
 
   const handleGenerate = async (type: GenerationType) => {
-    console.log("[Exam Sprint Generate Step]");
+    console.log("[Exam Sprint Generate Start]");
     console.log("generationType:", type);
     console.log("noteId:", noteId);
     
@@ -70,34 +70,82 @@ export function SprintDashboardClient({ noteId, noteTitle, existingGenerations, 
     toast.loading(`Generating ${type}...`, { id: `sprint-${type}` });
 
     try {
-      const res = await generateWithDocumentFallback(noteId, type);
+      const res = await generateStudyMaterialAction(noteId, type);
+      
+      console.log("[Exam Sprint Generate Response]");
+      console.log("success:", res.success);
+      if (res.success && 'data' in res) console.log("generationId:", res.data?.id);
+      if (!res.success) console.log("error:", res.error);
       
       if (!res.success) {
-        const errorMessage = typeof res.error === 'object' && res.error !== null && 'message' in res.error ? (res.error as any).message : "Generation failed.";
-        toast.error(errorMessage, { id: `sprint-${type}` });
+        if (res.error && 'code' in res.error && (res.error as any).code === "SCANNED_PDF_CONFIRM_REQUIRED") {
+          toast.error("This note needs document reading. Open the note to confirm scanned PDF generation.", {
+            id: `sprint-${type}`,
+            action: {
+              label: "Open Note",
+              onClick: () => window.location.href = `/notes/${noteId}`
+            }
+          });
+        } else {
+          const errorMessage = typeof res.error === 'object' && res.error !== null && 'message' in res.error ? (res.error as any).message : "Generation failed.";
+          toast.error(errorMessage, { id: `sprint-${type}` });
+        }
         return;
       }
 
-      toast.success("Generation completed successfully!", { id: `sprint-${type}` });
+      toast.success(`${SPRINT_STEPS.find(s => s.type === type)?.title || type} generated and saved.`, { id: `sprint-${type}` });
       
-      // Optimistically update the state so it shows as Ready
-      if ('data' in res && res.data?.id) {
-        setGenerations(prev => [
-          {
-            id: res.data.id as string,
-            note_id: noteId,
-            note_title: noteTitle,
-            generation_type: type,
-            status: "completed",
-            result_text: "",
-            result_json: null,
-            created_at: new Date().toISOString()
-          },
-          ...prev
-        ]);
-        
-        // Also increment local usage visually if needed
-        usageData.usedThisMonth += 1;
+      usageData.usedThisMonth += 1;
+
+      // Refresh sprint status from server
+      const statusRes = await getExamSprintStatusAction(noteId);
+      if (statusRes.success && statusRes.steps) {
+        const readySteps = Object.keys(statusRes.steps).filter(k => statusRes.steps[k].status === "ready");
+        const missingSteps = Object.keys(statusRes.steps).filter(k => statusRes.steps[k].status === "missing");
+        console.log("[Exam Sprint Status Refresh]");
+        console.log("noteId:", noteId);
+        console.log("readySteps:", readySteps);
+        console.log("missingSteps:", missingSteps);
+
+        // Update local state with latest generationIds from server
+        const updatedGenerations = [...generations];
+        if (statusRes.steps[type].status === "ready") {
+          const newGenId = statusRes.steps[type].generationId;
+          if (!updatedGenerations.find(g => g.id === newGenId)) {
+            updatedGenerations.unshift({
+              id: newGenId,
+              note_id: noteId,
+              note_title: noteTitle,
+              generation_type: type,
+              status: "completed",
+              result_text: null,
+              result_json: null,
+              created_at: new Date().toISOString()
+            });
+            console.log("[Exam Sprint Step Updated]");
+            console.log("generationType:", type);
+            console.log("status:", "completed");
+            console.log("generationId:", newGenId);
+          }
+        }
+        setGenerations(updatedGenerations);
+      } else {
+        // Fallback optimistic update if status fetch fails
+        if ('data' in res && res.data?.id) {
+          setGenerations(prev => [
+            {
+              id: res.data!.id as string,
+              note_id: noteId,
+              note_title: noteTitle,
+              generation_type: type,
+              status: "completed",
+              result_text: null,
+              result_json: null,
+              created_at: new Date().toISOString()
+            },
+            ...prev
+          ]);
+        }
       }
 
     } catch (error) {
@@ -157,7 +205,7 @@ export function SprintDashboardClient({ noteId, noteTitle, existingGenerations, 
                   <Button 
                     onClick={() => handleGenerate(step.type)} 
                     disabled={isLoading || loadingStep !== null}
-                    className="h-8 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-zinc-950 px-4 transition-all"
+                    className="h-8 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-zinc-950 px-4 transition-all disabled:opacity-50"
                   >
                     {isLoading ? (
                       <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Generating...</>
