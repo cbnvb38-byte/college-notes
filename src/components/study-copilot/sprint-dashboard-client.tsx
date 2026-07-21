@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { SavedGeneration, getExamSprintStatusAction } from "@/app/actions/copilot-history";
-import { generateStudyMaterialAction } from "@/app/actions/copilot";
+import { generateStudyMaterialAction, generateWithDocumentFallback } from "@/app/actions/copilot";
 import { UserAIUsage } from "@/app/actions/ai-usage";
 import { Button } from "@/components/ui/button";
-import { Check, Loader2, Sparkles, AlertCircle, ArrowRight, BookOpen, Brain, ListOrdered, GraduationCap } from "lucide-react";
+import { Check, Loader2, Sparkles, AlertCircle, ArrowRight, BookOpen, Brain, ListOrdered, GraduationCap, Eye } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { GenerationType } from "@/lib/ai/types";
@@ -51,13 +51,14 @@ const SPRINT_STEPS = [
 export function SprintDashboardClient({ noteId, noteTitle, existingGenerations, usageData }: SprintDashboardClientProps) {
   const [generations, setGenerations] = useState<SavedGeneration[]>(existingGenerations);
   const [loadingStep, setLoadingStep] = useState<string | null>(null);
+  const [requiresDocumentReading, setRequiresDocumentReading] = useState<GenerationType | null>(null);
 
   const getStepStatus = (type: string) => {
     return generations.find(g => g.generation_type === type && g.status === "completed");
   };
 
-  const handleGenerate = async (type: GenerationType) => {
-    console.log("[Exam Sprint Generate Start]");
+  const handleGenerate = async (type: GenerationType, useDocumentFallback: boolean = false) => {
+    console.log(useDocumentFallback ? "[Exam Sprint Document Fallback Start]" : "[Exam Sprint Generate Start]");
     console.log("generationType:", type);
     console.log("noteId:", noteId);
     
@@ -68,24 +69,25 @@ export function SprintDashboardClient({ noteId, noteTitle, existingGenerations, 
 
     setLoadingStep(type);
     toast.loading(`Generating ${type}...`, { id: `sprint-${type}` });
+    setRequiresDocumentReading(null);
 
     try {
-      const res = await generateStudyMaterialAction(noteId, type);
+      const res = useDocumentFallback 
+        ? await generateWithDocumentFallback(noteId, type) 
+        : await generateStudyMaterialAction(noteId, type);
       
       console.log("[Exam Sprint Generate Response]");
       console.log("success:", res.success);
       if (res.success && 'data' in res) console.log("generationId:", res.data?.id);
-      if (!res.success) console.log("error:", res.error);
+      if (!res.success) {
+        console.log("error:", res.error);
+        console.log("requiresDocumentReading:", res.error && 'code' in res.error && (res.error as any).code === "SCANNED_PDF_CONFIRM_REQUIRED");
+      }
       
       if (!res.success) {
         if (res.error && 'code' in res.error && (res.error as any).code === "SCANNED_PDF_CONFIRM_REQUIRED") {
-          toast.error("This note needs document reading. Open the note to confirm scanned PDF generation.", {
-            id: `sprint-${type}`,
-            action: {
-              label: "Open Note",
-              onClick: () => window.location.href = `/notes/${noteId}`
-            }
-          });
+          toast.error("This note needs document reading.", { id: `sprint-${type}` });
+          setRequiresDocumentReading(type);
         } else {
           const errorMessage = typeof res.error === 'object' && res.error !== null && 'message' in res.error ? (res.error as any).message : "Generation failed.";
           toast.error(errorMessage, { id: `sprint-${type}` });
@@ -163,6 +165,7 @@ export function SprintDashboardClient({ noteId, noteTitle, existingGenerations, 
           const savedResult = getStepStatus(step.type);
           const isReady = !!savedResult;
           const isLoading = loadingStep === step.type;
+          const isDocReadingRequired = requiresDocumentReading === step.type;
           
           return (
             <div key={step.id} className="bg-zinc-900/40 border border-zinc-800/80 p-5 sm:p-6 rounded-3xl flex flex-col gap-4 relative overflow-hidden group hover:border-amber-500/30 transition-colors">
@@ -184,37 +187,64 @@ export function SprintDashboardClient({ noteId, noteTitle, existingGenerations, 
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mt-2 pt-4 border-t border-zinc-800/50">
-                {isReady ? (
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full w-fit">
-                    <Check className="h-3.5 w-3.5" /> Ready
+              {isDocReadingRequired && !isReady ? (
+                <div className="mt-2 pt-4 border-t border-zinc-800/50 flex flex-col gap-3">
+                  <div className="flex items-center gap-2 text-amber-400 text-xs font-medium bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    This note looks scanned or image-based. Use document reading to generate this step.
                   </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-500 bg-zinc-900 px-3 py-1 rounded-full border border-zinc-800 w-fit">
-                    Not generated yet
-                  </div>
-                )}
-
-                {isReady ? (
-                  <Link href={`/dashboard/study-copilot/${savedResult.id}`}>
-                    <Button variant="outline" className="h-8 text-xs font-bold bg-zinc-950 border-emerald-500/30 text-emerald-400 hover:text-emerald-300 hover:bg-zinc-900">
-                      Open Reader <ArrowRight className="ml-1.5 h-3 w-3" />
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      onClick={() => handleGenerate(step.type, true)}
+                      disabled={isLoading}
+                      className="h-8 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-zinc-950 flex-1 transition-all disabled:opacity-50"
+                    >
+                      {isLoading ? (
+                        <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Generating...</>
+                      ) : (
+                        <><Eye className="mr-1.5 h-3.5 w-3.5" /> Use Document Reading</>
+                      )}
                     </Button>
-                  </Link>
-                ) : (
-                  <Button 
-                    onClick={() => handleGenerate(step.type)} 
-                    disabled={isLoading || loadingStep !== null}
-                    className="h-8 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-zinc-950 px-4 transition-all disabled:opacity-50"
-                  >
-                    {isLoading ? (
-                      <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Generating...</>
-                    ) : (
-                      <><Sparkles className="mr-1.5 h-3.5 w-3.5" /> Generate</>
-                    )}
-                  </Button>
-                )}
-              </div>
+                    <Link href={`/notes/${noteId}`} className="flex-1">
+                      <Button variant="outline" className="h-8 w-full text-xs font-bold bg-zinc-950 border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800">
+                        Open Note
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between mt-2 pt-4 border-t border-zinc-800/50">
+                  {isReady ? (
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full w-fit">
+                      <Check className="h-3.5 w-3.5" /> Ready
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-500 bg-zinc-900 px-3 py-1 rounded-full border border-zinc-800 w-fit">
+                      Not generated yet
+                    </div>
+                  )}
+
+                  {isReady ? (
+                    <Link href={`/dashboard/study-copilot/${savedResult.id}`}>
+                      <Button variant="outline" className="h-8 text-xs font-bold bg-zinc-950 border-emerald-500/30 text-emerald-400 hover:text-emerald-300 hover:bg-zinc-900">
+                        Open Reader <ArrowRight className="ml-1.5 h-3 w-3" />
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button 
+                      onClick={() => handleGenerate(step.type)} 
+                      disabled={isLoading || loadingStep !== null}
+                      className="h-8 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-zinc-950 px-4 transition-all disabled:opacity-50"
+                    >
+                      {isLoading ? (
+                        <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Generating...</>
+                      ) : (
+                        <><Sparkles className="mr-1.5 h-3.5 w-3.5" /> Generate</>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
