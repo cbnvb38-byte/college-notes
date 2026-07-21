@@ -16,16 +16,21 @@ export const metadata = {
   description: "Guided premium exam revision workflow.",
 };
 
-export default async function SprintDashboardPage({ params }: { params: { noteId: string } }) {
+interface PageProps {
+  params: Promise<{ noteId: string }>;
+}
+
+export default async function SprintDashboardPage({ params }: PageProps) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
   const usageResult = await getUserAIUsage();
-  if (!usageResult.success || !usageResult.data || !usageResult.data.isPremiumActive) {
+  console.log("[Exam Sprint Open] isPremiumActive:", "data" in usageResult ? usageResult.data?.isPremiumActive : false);
+  if (!usageResult.success || !("data" in usageResult) || !usageResult.data || !usageResult.data.isPremiumActive) {
     redirect("/dashboard/study-copilot/sprint"); // Sends them back to the locked view
   }
 
-  const { noteId } = params;
+  const { noteId } = await params;
 
   // 1. Fetch note details
   const noteResult = await fetchNoteDetailsAction(noteId);
@@ -33,11 +38,22 @@ export default async function SprintDashboardPage({ params }: { params: { noteId
     redirect("/dashboard/study-copilot/sprint");
   }
   const note = noteResult.data.note;
+  console.log("[Exam Sprint Select Note]");
+  console.log("noteId:", noteId);
+  console.log("noteTitle:", note.title);
 
   // 2. Fetch all generations for this user and filter for this note
   const generationsResult = await getMyAIGenerations();
   const allGenerations = generationsResult.success ? generationsResult.data : [];
   const noteGenerations = allGenerations.filter(g => g.note_id === noteId);
+
+  const readySteps = noteGenerations.filter(g => g.status === "completed").map(g => g.generation_type);
+  const missingSteps = ["summary", "important_questions", "flashcards", "mcq"].filter(type => !readySteps.includes(type));
+  console.log("[Exam Sprint Status Fetch]");
+  console.log("noteId:", noteId);
+  console.log("success:", true);
+  console.log("readySteps:", readySteps);
+  console.log("missingSteps:", missingSteps);
 
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col font-sans selection:bg-indigo-500/30">

@@ -57,6 +57,10 @@ export function SprintDashboardClient({ noteId, noteTitle, existingGenerations, 
   };
 
   const handleGenerate = async (type: GenerationType) => {
+    console.log("[Exam Sprint Generate Step]");
+    console.log("generationType:", type);
+    console.log("noteId:", noteId);
+    
     if (usageData.usedThisMonth >= usageData.monthlyLimit) {
       toast.error("Usage limit reached. You cannot generate more this month.");
       return;
