@@ -102,6 +102,21 @@ export function getResultPreview(generation: SavedGeneration): string {
     }
   }
 
+  if (generation.generation_type === "important_questions") {
+    const data = parseImportantQuestionsResult(generation.result_text, generation.result_json as Record<string, unknown> | null);
+    if (data && data.sections) {
+      const qCount = data.sections.reduce((acc: number, sec: any) => acc + (sec.questions?.length || 0), 0);
+      if (qCount > 0) {
+        const topics = Array.from(new Set(data.sections.flatMap((s: any) => s.questions?.map((q: any) => q.topic) || []).filter(Boolean)));
+        let topicStr = "";
+        if (topics.length > 0) {
+          topicStr = ` • ${topics.slice(0, 3).join(", ")}`;
+        }
+        return `${qCount} exam questions generated${topicStr}`;
+      }
+    }
+  }
+
   const text = safelyExtractText(generation.result_text, generation.result_json as Record<string, unknown> | null);
   
   if (!text || (text.trim().startsWith("{") && text.trim().endsWith("}"))) {
@@ -285,6 +300,62 @@ export function parseFlashcardsResult(resultText: string | null, resultJson: Rec
   }));
 }
 
+export function parseImportantQuestionsResult(resultText: string | null, resultJson: Record<string, unknown> | null): any | null {
+  let parsed: any = null;
+
+  if (resultJson && resultJson.sections) {
+    parsed = resultJson;
+  } else if (resultJson && Array.isArray(resultJson.questions)) {
+    parsed = { sections: [{ title: "Questions", questions: resultJson.questions }] };
+  } else if (Array.isArray(resultJson)) {
+    parsed = { sections: [{ title: "Questions", questions: resultJson }] };
+  }
+
+  if (!parsed && resultText) {
+    let textToParse = resultText.trim();
+    
+    const jsonFenceMatch = /```json\s*([\s\S]*?)\s*```/i.exec(textToParse);
+    if (jsonFenceMatch && jsonFenceMatch[1]) {
+      textToParse = jsonFenceMatch[1].trim();
+    } else if (textToParse.startsWith("{") && textToParse.endsWith("}")) {
+      // JSON string
+    } else {
+      const firstBrace = textToParse.indexOf("{");
+      const lastBrace = textToParse.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        textToParse = textToParse.slice(firstBrace, lastBrace + 1);
+      }
+    }
+    
+    textToParse = textToParse.replace(/(?<!\\)\\([a-zA-Z])/g, "\\\\$1");
+
+    try {
+      const p = JSON.parse(textToParse);
+      if (p.sections) parsed = p;
+      else if (p.questions) parsed = { sections: [{ title: "Questions", questions: p.questions }] };
+      else if (Array.isArray(p)) parsed = { sections: [{ title: "Questions", questions: p }] };
+    } catch {
+      // fallback
+    }
+  }
+
+  if (!parsed || !Array.isArray(parsed.sections)) return null;
+
+  const sections = parsed.sections.map((s: any) => ({
+    title: String(s.title || "Questions"),
+    questions: (Array.isArray(s.questions) ? s.questions : []).map((q: any) => ({
+      question: String(q.question || ""),
+      answer_hint: q.answer_hint ? String(q.answer_hint) : undefined,
+      marks: q.marks ? Number(q.marks) : undefined,
+      topic: q.topic ? String(q.topic) : undefined,
+      difficulty: q.difficulty || "medium",
+      why_important: q.why_important ? String(q.why_important) : undefined
+    }))
+  }));
+
+  return { sections };
+}
+
 export function getCopyableResultText(generation: SavedGeneration): string {
   const lines: string[] = [];
   const typeLabel = getGenerationTypeLabel(generation.generation_type);
@@ -324,6 +395,26 @@ export function getCopyableResultText(generation: SavedGeneration): string {
     }
   }
 
+  if (generation.generation_type === "important_questions") {
+    const data = parseImportantQuestionsResult(generation.result_text, generation.result_json as Record<string, unknown> | null);
+    if (data && data.sections) {
+      data.sections.forEach((s: any) => {
+        lines.push(s.title);
+        lines.push("");
+        s.questions.forEach((q: any, i: number) => {
+          lines.push(`Q${i + 1}. ${q.question}`);
+          if (q.marks) lines.push(`Marks: ${q.marks}`);
+          if (q.topic) lines.push(`Topic: ${q.topic}`);
+          if (q.difficulty) lines.push(`Difficulty: ${q.difficulty}`);
+          if (q.answer_hint) lines.push(`Answer Hint: ${q.answer_hint}`);
+          if (q.why_important) lines.push(`Why Important: ${q.why_important}`);
+          lines.push("");
+        });
+      });
+      return lines.join("\n").trim();
+    }
+  }
+
   const text = safelyExtractText(generation.result_text, generation.result_json as Record<string, unknown> | null);
   if (!text || (text.trim().startsWith("{") && text.trim().endsWith("}"))) {
     return "This saved result has no readable content.";
@@ -343,5 +434,6 @@ export function getGenerationTypeLabel(type: string): string {
   if (type === "summary") return "Smart Summary";
   if (type === "mcq") return "Practice Quiz";
   if (type === "flashcards") return "Flashcards";
+  if (type === "important_questions") return "Important Questions";
   return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }

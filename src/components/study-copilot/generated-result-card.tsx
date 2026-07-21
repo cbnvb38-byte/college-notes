@@ -17,7 +17,7 @@ import {
   HelpCircle,
   GraduationCap
 } from "lucide-react";
-import { parseSummarySections, getGenerationTypeLabel, getCopyableResultText, parseMCQResult, parseFlashcardsResult } from "@/lib/ai/result-formatting";
+import { parseSummarySections, getGenerationTypeLabel, getCopyableResultText, parseMCQResult, parseFlashcardsResult, parseImportantQuestionsResult } from "@/lib/ai/result-formatting";
 
 import { StudyMarkdownRenderer } from "./study-markdown-renderer";
 
@@ -180,6 +180,62 @@ function Flashcard({ card, index }: { card: any, index: number }) {
   );
 }
 
+// ─── Important Questions Component ──────────────────────────────────────────────
+
+function ImportantQuestionCard({ question, index }: { question: any, index: number }) {
+  let difficultyColor = "bg-zinc-800 text-zinc-300 border-zinc-700";
+  if (question.difficulty === "easy") difficultyColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+  if (question.difficulty === "medium") difficultyColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+  if (question.difficulty === "hard") difficultyColor = "bg-red-500/10 text-red-400 border-red-500/20";
+
+  return (
+    <div className="flex flex-col gap-3 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <h3 className="text-sm font-bold text-zinc-100 flex items-start gap-2">
+          <span className="text-indigo-400 mt-0.5">Q{index + 1}.</span>
+          <div className="flex-1 -mt-1"><StudyMarkdownRenderer content={question.question} /></div>
+        </h3>
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+          {question.marks && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
+              {question.marks} Marks
+            </span>
+          )}
+          <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${difficultyColor}`}>
+            {question.difficulty || "medium"}
+          </span>
+          {question.topic && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border bg-zinc-800/80 text-zinc-400 border-zinc-700">
+              {question.topic}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 pl-8">
+        {question.why_important && (
+          <div className="flex items-start gap-2 pt-2">
+            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider shrink-0 mt-0.5">Why it matters:</span>
+            <div className="text-xs text-zinc-400 -mt-0.5"><StudyMarkdownRenderer content={question.why_important} /></div>
+          </div>
+        )}
+        
+        {question.answer_hint && (
+          <div className="mt-2 p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+            <div className="flex items-start gap-2">
+              <Lightbulb className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider block mb-1">Answer Hint</span>
+                <div className="text-sm text-emerald-200/90"><StudyMarkdownRenderer content={question.answer_hint} /></div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -197,17 +253,21 @@ export function GeneratedResultCard({
 
   const isMcq = generationType === "mcq";
   const isFlashcards = generationType === "flashcards";
+  const isImportantQuestions = generationType === "important_questions";
 
   const parsedQuestions = isMcq ? parseMCQResult(resultText, resultJson || null) : null;
   const parsedCards = isFlashcards ? parseFlashcardsResult(resultText, resultJson || null) : null;
+  const parsedImportant = isImportantQuestions ? parseImportantQuestionsResult(resultText, resultJson || null) : null;
 
   const questions = parsedQuestions || [];
   const cards = parsedCards || [];
+  const importantSections = parsedImportant?.sections || [];
 
   const validMcq = isMcq && questions.length > 0;
   const validFlashcards = isFlashcards && cards.length > 0;
+  const validImportant = isImportantQuestions && importantSections.length > 0;
   
-  const sections = !isMcq && !isFlashcards ? parseSummarySections(resultText, resultJson || null) : [];
+  const sections = !isMcq && !isFlashcards && !isImportantQuestions ? parseSummarySections(resultText, resultJson || null) : [];
 
   const handleCopy = async () => {
     try {
@@ -255,7 +315,7 @@ export function GeneratedResultCard({
           </div>
           {noteTitle && (
             <p className="text-sm font-semibold text-zinc-100 truncate">
-              {generationType === "mcq" ? "Generated Practice Quiz" : generationType === "flashcards" ? "Generated Flashcards" : "Generated Study Summary"}
+              {generationType === "mcq" ? "Generated Practice Quiz" : generationType === "flashcards" ? "Generated Flashcards" : generationType === "important_questions" ? "Generated Important Questions" : "Generated Study Summary"}
             </p>
           )}
           <div className="flex items-center gap-3 flex-wrap">
@@ -367,6 +427,25 @@ export function GeneratedResultCard({
         </div>
       )}
 
+      {/* ── Body: Important Questions ── */}
+      {expanded && validImportant && (
+        <div className="flex flex-col gap-6 p-5">
+          {importantSections.map((sec: any, secIdx: number) => (
+            <div key={secIdx} className="flex flex-col gap-4">
+              <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
+                <Target className="h-4 w-4 text-indigo-400" />
+                <h3 className="font-bold text-zinc-200 uppercase tracking-wider text-xs">{sec.title}</h3>
+              </div>
+              <div className="flex flex-col gap-0 divide-y divide-zinc-800/40 border border-zinc-800/60 rounded-xl overflow-hidden bg-zinc-950/20">
+                {(sec.questions || []).map((q: any, qIdx: number) => (
+                  <ImportantQuestionCard key={qIdx} question={q} index={qIdx} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── Body: MCQ Fallback ── */}
       {expanded && isMcq && !validMcq && (
         <div className="p-5 flex flex-col gap-4 text-sm text-zinc-300">
@@ -399,6 +478,22 @@ export function GeneratedResultCard({
         </div>
       )}
 
+      {/* ── Body: Important Questions Fallback ── */}
+      {expanded && isImportantQuestions && !validImportant && (
+        <div className="p-5 flex flex-col gap-4 text-sm text-zinc-300">
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 p-4 rounded-xl flex items-start gap-3">
+            <HelpCircle className="h-5 w-5 mt-0.5 shrink-0" />
+            <p>Important questions were generated but could not be parsed correctly.</p>
+          </div>
+          <details className="text-xs">
+            <summary className="cursor-pointer text-zinc-500 font-semibold mb-2 hover:text-zinc-300">View raw fallback</summary>
+            <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg overflow-x-auto">
+              <pre className="text-zinc-400 whitespace-pre-wrap">{resultText || JSON.stringify(resultJson, null, 2)}</pre>
+            </div>
+          </details>
+        </div>
+      )}
+
       {/* ── Compact preview (when collapsed) ── */}
       {!expanded && (
         <div className="px-5 py-4">
@@ -407,6 +502,8 @@ export function GeneratedResultCard({
               ? `${questions.length} questions generated. Click Open to view and practice.`
               : validFlashcards
               ? `${cards.length} flashcards generated. Click Open to view and practice.`
+              : validImportant
+              ? `Important questions generated across ${importantSections.length} sections. Click Open to view.`
               : (sections[0]?.content.slice(0, 200).replace(/\*\*/g, "") ?? "Click Open to view the full result.")
             }
           </p>

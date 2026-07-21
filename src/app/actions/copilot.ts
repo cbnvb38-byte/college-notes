@@ -5,7 +5,7 @@ import { GenerationType } from "@/lib/ai/types";
 import { createClient } from "@supabase/supabase-js";
 import { getStudyContentForNote } from "@/lib/ai/document-content";
 import { GoogleGenAI } from "@google/genai";
-import { parseMCQResult, parseFlashcardsResult } from "@/lib/ai/result-formatting";
+import { parseMCQResult, parseFlashcardsResult, parseImportantQuestionsResult } from "@/lib/ai/result-formatting";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -35,7 +35,7 @@ export async function generateStudyMaterialAction(
       return { success: false, error: { message: "Note ID is required." } };
     }
 
-    if (generationType !== "summary" && generationType !== "mcq" && generationType !== "flashcards") {
+    if (generationType !== "summary" && generationType !== "mcq" && generationType !== "flashcards" && generationType !== "important_questions") {
       return {
         success: false,
         error: { message: "This tool will be enabled in a later Phase 8 step." },
@@ -186,6 +186,76 @@ Provided Text:
 """
 ${extractedText}
 """`;
+    } else if (generationType === "important_questions") {
+      prompt = `You are an expert AI Study Assistant.
+Your task is to generate exam-focused important questions from the provided text.
+Use ONLY the information in the provided text. Do not add outside facts.
+
+Return ONLY valid JSON.
+Do not wrap in markdown.
+Do not add prose outside JSON.
+Use only the uploaded note/PDF content.
+Do not hallucinate outside topics.
+Generate around:
+  - 5 very short answer questions
+  - 7 short answer questions
+  - 5 long answer/derivation/concept questions
+If content is small, generate fewer but keep quality high.
+Prefer exam-focused questions.
+Include formulas in LaTeX where needed.
+Include answer_hint, not full long answer.
+Include why_important for each question.
+Make questions useful for university exam preparation.
+
+Required JSON format:
+{
+  "sections": [
+    {
+      "title": "Very Short Answer Questions",
+      "questions": [
+        {
+          "question": "Question text",
+          "answer_hint": "Short hint or key point",
+          "marks": 2,
+          "topic": "Topic name",
+          "difficulty": "easy|medium|hard",
+          "why_important": "Why this is likely important for exams"
+        }
+      ]
+    },
+    {
+      "title": "Short Answer Questions",
+      "questions": [
+        {
+          "question": "Question text",
+          "answer_hint": "Short hint or key point",
+          "marks": 5,
+          "topic": "Topic name",
+          "difficulty": "easy|medium|hard",
+          "why_important": "Why this is likely important for exams"
+        }
+      ]
+    },
+    {
+      "title": "Long Answer / Derivation Questions",
+      "questions": [
+        {
+          "question": "Question text",
+          "answer_hint": "Short hint or key point",
+          "marks": 10,
+          "topic": "Topic name",
+          "difficulty": "easy|medium|hard",
+          "why_important": "Why this is likely important for exams"
+        }
+      ]
+    }
+  ]
+}
+
+Provided Text:
+"""
+${extractedText}
+"""`;
     }
 
     let resultText = "";
@@ -241,7 +311,7 @@ ${extractedText}
         resultText: saveResponse.data!.resultText,
         resultJson: saveResponse.data!.resultJson,
       },
-      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : generationType === "flashcards" ? "Flashcards generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
+      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : generationType === "flashcards" ? "Flashcards generated and saved to Study Copilot." : generationType === "important_questions" ? "Important Questions generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
       error: undefined,
     };
   } catch (error: any) {
@@ -379,6 +449,69 @@ Required format:
     }
   ]
 }`;
+    } else if (generationType === "important_questions") {
+      prompt = `You are Study Copilot. Read the uploaded PDF document. It may be scanned or image-based. Use document understanding/OCR to extract the readable study content.
+Generate exam-focused important questions from the document content.
+Use ONLY the information in the provided document. Do not add outside facts. If the document is unreadable, blurry, or does not contain enough study content, say clearly that the document could not be read.
+
+Return ONLY valid JSON.
+Do not wrap in markdown.
+Do not add prose outside JSON.
+Generate around:
+  - 5 very short answer questions
+  - 7 short answer questions
+  - 5 long answer/derivation/concept questions
+If content is small, generate fewer but keep quality high.
+Prefer exam-focused questions.
+Include formulas in LaTeX where needed.
+Include answer_hint, not full long answer.
+Include why_important for each question.
+Make questions useful for university exam preparation.
+
+Required JSON format:
+{
+  "sections": [
+    {
+      "title": "Very Short Answer Questions",
+      "questions": [
+        {
+          "question": "Question text",
+          "answer_hint": "Short hint or key point",
+          "marks": 2,
+          "topic": "Topic name",
+          "difficulty": "easy|medium|hard",
+          "why_important": "Why this is likely important for exams"
+        }
+      ]
+    },
+    {
+      "title": "Short Answer Questions",
+      "questions": [
+        {
+          "question": "Question text",
+          "answer_hint": "Short hint or key point",
+          "marks": 5,
+          "topic": "Topic name",
+          "difficulty": "easy|medium|hard",
+          "why_important": "Why this is likely important for exams"
+        }
+      ]
+    },
+    {
+      "title": "Long Answer / Derivation Questions",
+      "questions": [
+        {
+          "question": "Question text",
+          "answer_hint": "Short hint or key point",
+          "marks": 10,
+          "topic": "Topic name",
+          "difficulty": "easy|medium|hard",
+          "why_important": "Why this is likely important for exams"
+        }
+      ]
+    }
+  ]
+}`;
     }
 
     devLog("Calling Gemini with PDF inlineData...");
@@ -439,7 +572,7 @@ Required format:
         resultText: saveResponse.data!.resultText,
         resultJson: saveResponse.data!.resultJson,
       },
-      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : generationType === "flashcards" ? "Flashcards generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
+      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : generationType === "flashcards" ? "Flashcards generated and saved to Study Copilot." : generationType === "important_questions" ? "Important Questions generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
       error: undefined,
     };
   } catch (error: any) {
@@ -487,6 +620,17 @@ async function saveAIGenerationResult({
       devLog("[Flashcards Save] parse succeeded, flashcards:", parsed.length);
     } else {
       devLog("[Flashcards Save] Flashcards JSON parse completely failed, storing raw fallback in result_text");
+      resultJson = null;
+    }
+  } else if (generationType === "important_questions") {
+    const parsed = parseImportantQuestionsResult(finalResultText, null);
+    devLog("[Important Questions Save] raw output length:", finalResultText?.length ?? 0);
+    if (parsed && Array.isArray(parsed.sections) && parsed.sections.length > 0) {
+      resultJson = parsed;
+      finalResultText = null;
+      devLog("[Important Questions Save] parse succeeded, sections:", parsed.sections.length);
+    } else {
+      devLog("[Important Questions Save] JSON parse completely failed, storing raw fallback in result_text");
       resultJson = null;
     }
   }

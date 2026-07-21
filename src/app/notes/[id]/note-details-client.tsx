@@ -34,7 +34,7 @@ import { STUDY_TOOLS } from "@/lib/ai/study-tools";
 import { GenerationType } from "@/lib/ai/types";
 import { Check } from "lucide-react";
 import { CopyResultButton } from "@/components/study-copilot/copy-result-button";
-import { getCopyableResultText } from "@/lib/ai/result-formatting";
+import { getCopyableResultText, getGenerationTypeLabel } from "@/lib/ai/result-formatting";
 interface RelatedNote {
   id: string;
   title: string;
@@ -302,8 +302,8 @@ export default function NoteDetailsClient({
       return;
     }
     
-    // For now, only summary, mcq, and flashcards are enabled.
-    if (generationType !== "summary" && generationType !== "mcq" && generationType !== "flashcards") {
+    // For now, only summary, mcq, flashcards, and important_questions are enabled.
+    if (generationType !== "summary" && generationType !== "mcq" && generationType !== "flashcards" && generationType !== "important_questions") {
       toast.info("This feature will be enabled in a later phase.");
       return;
     }
@@ -789,7 +789,7 @@ export default function NoteDetailsClient({
                   <div className="flex items-center gap-2">
                     <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                     <p className="text-[11px] text-emerald-300 font-semibold leading-snug">
-                      {generatedResult.type === "mcq" ? "Practice Quiz" : "Summary"} saved to Study Copilot history.
+                      {getGenerationTypeLabel(generatedResult.type)} saved to Study Copilot history.
                     </p>
                   </div>
                   <div className="flex gap-2 pl-5">
