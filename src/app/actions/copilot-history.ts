@@ -41,7 +41,7 @@ export async function getMyAIGenerations(): Promise<
       .from("ai_generations")
       .select("id, note_id, generation_type, status, result_text, result_json, created_at")
       .eq("user_id", userId)
-      .in("generation_type", ["summary", "mcq", "flashcards"])
+      .in("generation_type", ["summary", "mcq", "flashcards", "doubt_answer", "important_questions"])
       .eq("status", "completed")
       .order("created_at", { ascending: false })
       .limit(50);

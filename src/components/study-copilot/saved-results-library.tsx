@@ -12,7 +12,7 @@ interface SavedResultsLibraryProps {
   savedData: SavedGeneration[];
 }
 
-type TabType = "all" | "summary" | "mcq" | "flashcards";
+type TabType = "all" | "summary" | "mcq" | "flashcards" | "doubt_answer" | "important_questions";
 type SortOption = "newest" | "oldest" | "type";
 
 export function SavedResultsLibrary({ savedData }: SavedResultsLibraryProps) {
@@ -39,18 +39,16 @@ export function SavedResultsLibrary({ savedData }: SavedResultsLibraryProps) {
     { id: "summary", label: "Summaries" },
     { id: "mcq", label: "Quizzes" },
     { id: "flashcards", label: "Flashcards" },
+    { id: "doubt_answer", label: "Doubts" },
+    { id: "important_questions", label: "Important Questions" },
   ];
 
   const filteredAndSortedData = useMemo(() => {
     let result = [...savedData];
 
     // Filter by Tab
-    if (activeTab === "summary") {
-      result = result.filter((g) => g.generation_type === "summary");
-    } else if (activeTab === "mcq") {
-      result = result.filter((g) => g.generation_type === "mcq");
-    } else if (activeTab === "flashcards") {
-      result = result.filter((g) => g.generation_type === "flashcards");
+    if (activeTab !== "all") {
+      result = result.filter((g) => g.generation_type === activeTab);
     }
 
     // Search
@@ -115,6 +113,8 @@ export function SavedResultsLibrary({ savedData }: SavedResultsLibraryProps) {
     if (activeTab === "summary") message = "No smart summaries saved yet.";
     else if (activeTab === "mcq") message = "No practice quizzes saved yet.";
     else if (activeTab === "flashcards") message = "No flashcards saved yet.";
+    else if (activeTab === "doubt_answer") message = "No saved doubts yet.";
+    else if (activeTab === "important_questions") message = "No important questions saved yet.";
 
     return (
       <div className="border border-dashed border-zinc-800/60 rounded-2xl py-12 flex flex-col items-center gap-3 text-center bg-zinc-900/10 mt-4">
