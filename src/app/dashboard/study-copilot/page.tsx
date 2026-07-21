@@ -19,7 +19,9 @@ import {
   Eye,
   Timer,
   Brain,
-  FileWarning
+  FileWarning,
+  Rocket,
+  Lock
 } from "lucide-react";
 import { STUDY_TOOLS, StudyToolGroup } from "@/lib/ai/study-tools";
 import { getMyAIGenerations } from "@/app/actions/copilot-history";
@@ -307,6 +309,75 @@ export default async function StudyCopilotPage() {
                    </div>
                  ) : null}
                </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── B.5 Exam Sprint Mode (Premium Workflow) ── */}
+        <div className="mb-10">
+          <div className="flex items-center gap-2 px-1 mb-4">
+            <Rocket className="h-5 w-5 text-amber-500" />
+            <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Exam Sprint Mode</h2>
+          </div>
+          
+          {usageState && usageState.isPremiumActive ? (
+            <div className="bg-gradient-to-r from-zinc-900/90 to-zinc-950 border border-amber-500/20 hover:border-amber-500/40 transition-colors p-6 sm:p-8 rounded-3xl shadow-[0_8px_30px_rgba(245,158,11,0.06)] relative overflow-hidden flex flex-col md:flex-row gap-6 items-center justify-between group">
+              <div className="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-amber-500/10 to-transparent pointer-events-none" />
+              <div className="absolute -right-4 -bottom-8 opacity-[0.03] transform -rotate-12 pointer-events-none transition-transform group-hover:scale-110 duration-1000">
+                <Rocket className="h-48 w-48 text-amber-500" />
+              </div>
+              
+              <div className="flex flex-col gap-3 z-10 w-full md:w-auto">
+                <h3 className="text-2xl font-black text-white tracking-tight">Build your exam route from a single note.</h3>
+                <p className="text-sm text-zinc-400 max-w-lg leading-relaxed">
+                  A guided revision workflow. Select a note, reuse saved results, and sprint through Summary, Important Questions, Flashcards, and Practice Quizzes seamlessly.
+                </p>
+                <div className="flex flex-wrap gap-4 mt-2">
+                  <div className="flex items-center gap-1.5 text-xs text-amber-200/80 font-bold bg-amber-500/10 px-3 py-1.5 rounded-full border border-amber-500/20 w-fit">
+                    <Sparkles className="h-3.5 w-3.5" /> 4-Step Guided Revision
+                  </div>
+                </div>
+              </div>
+              
+              <div className="z-10 shrink-0 w-full md:w-auto">
+                <Link href="/dashboard/study-copilot/sprint" className="block w-full">
+                  <Button className="w-full md:w-auto bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-black h-12 px-8 rounded-xl transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(245,158,11,0.4)]">
+                    Start Exam Sprint <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/60 p-6 sm:p-8 rounded-3xl relative overflow-hidden flex flex-col md:flex-row gap-6 items-center justify-between">
+              <div className="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-zinc-800/10 to-transparent pointer-events-none" />
+              <div className="absolute -right-4 -bottom-8 opacity-[0.02] transform -rotate-12 pointer-events-none">
+                <Rocket className="h-48 w-48 text-zinc-500" />
+              </div>
+              
+              <div className="flex flex-col gap-3 z-10 w-full md:w-auto">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-2xl font-black text-zinc-300 tracking-tight">Exam Sprint Mode</h3>
+                  <span className="bg-zinc-800/80 text-zinc-400 border border-zinc-700/80 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest flex items-center gap-1 w-fit">
+                    <Lock className="h-3 w-3" /> Locked
+                  </span>
+                </div>
+                <p className="text-sm text-zinc-500 max-w-lg leading-relaxed">
+                  Premium workflow for guided revision. Select a note and automatically build a 4-step study path from Summary to Practice Quiz.
+                </p>
+                <div className="flex flex-wrap gap-4 mt-2 opacity-50 grayscale pointer-events-none">
+                  <div className="flex items-center gap-1.5 text-xs text-amber-200/80 font-bold bg-amber-500/10 px-3 py-1.5 rounded-full border border-amber-500/20 w-fit">
+                    <Sparkles className="h-3.5 w-3.5" /> 4-Step Guided Revision
+                  </div>
+                </div>
+              </div>
+              
+              <div className="z-10 shrink-0 w-full md:w-auto">
+                <Link href="/pricing" className="block w-full">
+                  <Button variant="outline" className="w-full md:w-auto bg-zinc-950/50 hover:bg-zinc-900 border-amber-500/30 text-amber-400 hover:text-amber-300 font-bold h-12 px-8 rounded-xl transition-all">
+                    Unlock with Premium
+                  </Button>
+                </Link>
+              </div>
             </div>
           )}
         </div>
