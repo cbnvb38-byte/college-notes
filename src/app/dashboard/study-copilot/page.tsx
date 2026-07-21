@@ -168,7 +168,7 @@ export default async function StudyCopilotPage() {
 
         {/* ── B. Plan Status Area ── */}
         <div className="mb-4">
-          {usageState && usageState.plan === "premium" && (
+          {usageState && usageState.isPremiumActive && (
             <div className="bg-gradient-to-r from-zinc-950 to-zinc-900/80 border border-amber-500/20 p-5 sm:p-6 rounded-2xl shadow-[0_8px_30px_rgba(245,158,11,0.06)] relative overflow-hidden flex flex-col md:flex-row gap-6 items-center justify-between group">
                {/* Decorative watermark */}
                <div className="absolute -right-6 -bottom-10 opacity-[0.02] transform -rotate-12 pointer-events-none transition-transform group-hover:scale-110 duration-1000">
@@ -177,24 +177,31 @@ export default async function StudyCopilotPage() {
                
                <div className="flex flex-col gap-2 z-10 w-full md:w-auto">
                  <div className="flex items-center gap-3">
-                   <span className="bg-gradient-to-r from-amber-500 to-amber-300 text-zinc-950 text-xs px-3 py-1 rounded-full font-extrabold uppercase tracking-widest shadow-md flex items-center gap-1.5 w-fit">
-                     <Crown className="h-4 w-4" /> PREMIUM MEMBER
-                   </span>
+                   {usageState.isPremiumEndingSoon ? (
+                     <span className="bg-gradient-to-r from-red-500 to-orange-400 text-zinc-950 text-xs px-3 py-1 rounded-full font-extrabold uppercase tracking-widest shadow-md flex items-center gap-1.5 w-fit">
+                       <FileWarning className="h-4 w-4" /> PREMIUM ENDING SOON
+                     </span>
+                   ) : (
+                     <span className="bg-gradient-to-r from-amber-500 to-amber-300 text-zinc-950 text-xs px-3 py-1 rounded-full font-extrabold uppercase tracking-widest shadow-md flex items-center gap-1.5 w-fit">
+                       <Crown className="h-4 w-4" /> PREMIUM MEMBER
+                     </span>
+                   )}
                  </div>
-                 <h3 className="text-xl font-bold text-zinc-100 mt-1">Your premium Study Copilot is active.</h3>
-                 <p className="text-sm text-zinc-400">Unlocks higher monthly limits and advanced study workflows.</p>
                  
-                 <div className="flex flex-wrap gap-4 mt-2">
-                   <div className="flex items-center gap-1.5 text-xs text-amber-200/80 font-medium">
-                     <Zap className="h-3.5 w-3.5" /> Higher AI Limit
-                   </div>
-                   <div className="flex items-center gap-1.5 text-xs text-amber-200/80 font-medium">
-                     <Eye className="h-3.5 w-3.5" /> Scanned PDF Support
-                   </div>
-                   <div className="flex items-center gap-1.5 text-xs text-amber-200/80 font-medium">
-                     <Sparkles className="h-3.5 w-3.5" /> Premium Boosters
-                   </div>
-                 </div>
+                 <h3 className="text-xl font-bold text-zinc-100 mt-1">
+                   {usageState.isPremiumEndingSoon ? "Your premium membership ends soon." : "Your premium Study Copilot is active."}
+                 </h3>
+                 <p className="text-sm text-zinc-400">
+                   {usageState.isPremiumEndingSoon 
+                     ? "Renewal coming soon. You'll switch to the free plan if it expires." 
+                     : "Unlocks higher monthly limits and advanced study workflows."}
+                 </p>
+                 
+                 {usageState.premiumExpiresAt && (
+                   <p className="text-xs text-zinc-500 mt-1 font-medium">
+                     Valid until {new Date(usageState.premiumExpiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                   </p>
+                 )}
                </div>
                
                <div className="flex flex-col gap-2 z-10 w-full md:w-[320px] bg-zinc-950/60 p-4 rounded-xl border border-zinc-800/80">
@@ -214,7 +221,47 @@ export default async function StudyCopilotPage() {
             </div>
           )}
 
-          {usageState && usageState.plan === "free" && (
+          {usageState && usageState.isPremiumExpired && !usageState.isPremiumActive && (
+            <div className="bg-zinc-950 border border-zinc-800 p-5 sm:p-6 rounded-2xl shadow-lg relative overflow-hidden flex flex-col md:flex-row gap-6 items-center justify-between">
+               <div className="flex flex-col gap-2 z-10 w-full md:w-auto">
+                 <div className="flex items-center gap-3">
+                   <span className="bg-zinc-800 text-zinc-300 border border-zinc-700 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider w-fit">
+                     Premium Expired
+                   </span>
+                 </div>
+                 <h3 className="text-xl font-bold text-zinc-100 mt-1">Your premium membership has ended.</h3>
+                 <p className="text-sm text-zinc-400">You are now on the Free Plan. Renewal options coming soon.</p>
+                 <Link href="/pricing" className="mt-2 block w-fit">
+                   <Button variant="outline" className="text-zinc-300 border-zinc-700 hover:bg-zinc-800 hover:text-zinc-100 font-bold h-9 text-xs rounded-lg transition-all px-6">
+                     View Plans
+                   </Button>
+                 </Link>
+               </div>
+               
+               <div className="flex flex-col gap-2 z-10 w-full md:w-[320px] bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/50">
+                 <div className="flex items-center justify-between text-sm font-bold">
+                   <span className="text-zinc-400">AI Usage</span>
+                   <span className={usageState.usedThisMonth >= usageState.monthlyLimit ? "text-red-400" : "text-zinc-200"}>
+                     {usageState.usedThisMonth} <span className="text-zinc-500 font-medium">/ {usageState.monthlyLimit} generations</span>
+                   </span>
+                 </div>
+                 <div className="h-2.5 w-full bg-zinc-950 rounded-full overflow-hidden border border-zinc-800/80 relative">
+                   <div 
+                     className={`absolute top-0 left-0 h-full transition-all duration-700 ${
+                       usageState.usedThisMonth >= usageState.monthlyLimit 
+                         ? "bg-red-500" 
+                         : usageState.usedThisMonth >= (usageState.monthlyLimit * 0.8)
+                           ? "bg-amber-500"
+                           : "bg-indigo-500"
+                     }`}
+                     style={{ width: `${Math.min(100, (usageState.usedThisMonth / usageState.monthlyLimit) * 100)}%` }}
+                   />
+                 </div>
+               </div>
+            </div>
+          )}
+
+          {usageState && !usageState.isPremiumActive && !usageState.isPremiumExpired && (
             <div className="bg-zinc-950 border border-zinc-800 p-5 sm:p-6 rounded-2xl shadow-lg relative overflow-hidden flex flex-col md:flex-row gap-6 items-center justify-between">
                <div className="flex flex-col gap-2 z-10 w-full md:w-auto">
                  <div className="flex items-center gap-3">

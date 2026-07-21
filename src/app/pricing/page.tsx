@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -14,6 +14,7 @@ import {
   GraduationCap,
   ChevronDown,
   ArrowRight,
+  FileWarning,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -120,6 +121,8 @@ export default async function PricingPage() {
   let plan: "free" | "premium" | null = null;
   let usedThisMonth = 0;
   let monthlyLimit = 10;
+  let isPremiumActive = false;
+  let isPremiumExpired = false;
 
   if (userId) {
     const usageResult = await getUserAIUsage();
@@ -127,6 +130,8 @@ export default async function PricingPage() {
       plan = usageResult.data.plan;
       usedThisMonth = usageResult.data.usedThisMonth;
       monthlyLimit = usageResult.data.monthlyLimit;
+      isPremiumActive = usageResult.data.isPremiumActive || false;
+      isPremiumExpired = usageResult.data.isPremiumExpired || false;
     }
   }
 
@@ -145,13 +150,19 @@ export default async function PricingPage() {
 
         {/* HERO */}
         <div className="flex flex-col items-center text-center gap-5 pt-6">
-          {plan === "premium" && (
+          {isPremiumActive && (
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/10 to-purple-500/10 border border-amber-500/20">
               <Crown className="h-3.5 w-3.5 text-amber-400" />
               <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Premium Member</span>
             </div>
           )}
-          {plan === "free" && (
+          {isPremiumExpired && !isPremiumActive && (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20">
+              <FileWarning className="h-3.5 w-3.5 text-red-400" />
+              <span className="text-xs font-bold text-red-400 uppercase tracking-widest">Premium Expired</span>
+            </div>
+          )}
+          {!isPremiumActive && !isPremiumExpired && userId && (
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900/60 border border-zinc-700">
               <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
               <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Free Plan Active</span>
@@ -207,11 +218,11 @@ export default async function PricingPage() {
             </ul>
 
             <div className="mt-auto pt-4">
-              {plan === "premium" ? (
+              {isPremiumActive ? (
                 <div className="w-full py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-500 font-bold text-sm text-center cursor-default">
                   Included
                 </div>
-              ) : plan === "free" ? (
+              ) : userId ? (
                 <div className="w-full py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-300 font-bold text-sm text-center cursor-default">
                   ✓ Current Plan
                 </div>
@@ -254,12 +265,28 @@ export default async function PricingPage() {
             </ul>
 
             <div className="mt-auto pt-4 flex flex-col gap-3">
-              <button
-                disabled
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-400/10 border border-amber-500/30 text-amber-300/80 font-bold text-sm cursor-not-allowed"
-              >
-                Upgrade Coming Soon
-              </button>
+              {isPremiumExpired ? (
+                <button
+                  disabled
+                  className="w-full py-3 rounded-xl bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-bold text-sm cursor-not-allowed"
+                >
+                  Renew Premium — Coming Soon
+                </button>
+              ) : isPremiumActive ? (
+                <button
+                  disabled
+                  className="w-full py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 font-bold text-sm cursor-default"
+                >
+                  ✓ Current Plan: Premium
+                </button>
+              ) : (
+                <button
+                  disabled
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-400/10 border border-amber-500/30 text-amber-300/80 font-bold text-sm cursor-not-allowed"
+                >
+                  Upgrade Coming Soon
+                </button>
+              )}
               <Link href="/dashboard/contact" className="block w-full">
                 <button className="w-full py-2.5 rounded-xl bg-zinc-800/60 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-zinc-100 font-semibold text-xs transition-colors">
                   Contact Admin / Request Access

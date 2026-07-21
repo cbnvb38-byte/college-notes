@@ -2,7 +2,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
-import { getMonthlyLimitForPlan, UserPlan } from "@/lib/ai/premium";
+import { getMonthlyLimitForPlan, UserPlan, resolveUserPlan } from "@/lib/ai/premium";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -22,6 +22,11 @@ export interface UserAIUsage {
   plan: UserPlan;
   monthlyLimit: number;
   usedThisMonth: number;
+  premiumStatus?: string;
+  isPremiumActive?: boolean;
+  isPremiumExpired?: boolean;
+  isPremiumEndingSoon?: boolean;
+  premiumExpiresAt?: string | null;
 }
 
 /**
@@ -41,7 +46,7 @@ export async function getUserAIUsage(): Promise<
     // Get user plan
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("plan")
+      .select("plan, premium_status, premium_expires_at")
       .eq("id", userId)
       .single();
 
@@ -50,8 +55,16 @@ export async function getUserAIUsage(): Promise<
       return { success: false, error: "Failed to fetch profile plan." };
     }
 
-    const plan = (profileData?.plan as UserPlan) || "free";
-    const monthlyLimit = getMonthlyLimitForPlan(plan);
+    const {
+      effectivePlan: plan,
+      limit: monthlyLimit,
+      premiumStatus,
+      isPremiumActive,
+      isPremiumExpired,
+      isPremiumEndingSoon,
+      premiumExpiresAt,
+    } = resolveUserPlan(profileData);
+    
     const currentMonth = getCurrentMonthString();
 
     // Get current month usage
@@ -75,6 +88,11 @@ export async function getUserAIUsage(): Promise<
         plan,
         monthlyLimit,
         usedThisMonth,
+        premiumStatus,
+        isPremiumActive,
+        isPremiumExpired,
+        isPremiumEndingSoon,
+        premiumExpiresAt,
       },
     };
   } catch (error: any) {
@@ -99,7 +117,7 @@ export async function checkAILimitBeforeGeneration(userId: string): Promise<{
     // Get user plan
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("plan")
+      .select("plan, premium_status, premium_expires_at")
       .eq("id", userId)
       .single();
 
@@ -108,8 +126,7 @@ export async function checkAILimitBeforeGeneration(userId: string): Promise<{
       return { success: false, limitReached: false, error: "Failed to verify plan." };
     }
 
-    const plan = (profileData?.plan as UserPlan) || "free";
-    const monthlyLimit = getMonthlyLimitForPlan(plan);
+    const { effectivePlan: plan, limit: monthlyLimit } = resolveUserPlan(profileData);
     const currentMonth = getCurrentMonthString();
 
     // Get current month usage
