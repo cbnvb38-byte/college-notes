@@ -30,9 +30,10 @@ export function SavedSummaryCard({ generation }: SavedSummaryCardProps) {
       const copyText = getCopyableResultText(generation);
       await navigator.clipboard.writeText(copyText);
       setCopied(true);
+      toast.success("Copied to clipboard.");
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // silent
+      toast.error("Failed to copy to clipboard.");
     }
   };
 
@@ -57,7 +58,7 @@ export function SavedSummaryCard({ generation }: SavedSummaryCardProps) {
   };
 
   return (
-    <div className="flex items-start gap-4 px-5 py-4 rounded-2xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm hover:bg-zinc-900/60 transition-colors group">
+    <div className="flex items-start gap-4 px-5 py-4 rounded-2xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm hover:bg-zinc-900/80 hover:border-indigo-500/30 hover:shadow-[0_4px_20px_rgba(99,102,241,0.05)] transition-all group">
       {/* Icon */}
       <div className="bg-indigo-500/10 p-2.5 rounded-xl border border-indigo-500/20 shrink-0 mt-0.5">
         {generation.generation_type === "mcq" ? (

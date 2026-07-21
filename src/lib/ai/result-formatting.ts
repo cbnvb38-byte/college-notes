@@ -103,6 +103,7 @@ export function getResultPreview(generation: SavedGeneration): string {
       }
       return `${questions.length} questions generated${topicStr}`;
     }
+    return "Practice Quiz generated";
   }
 
   if (generation.generation_type === "flashcards") {
@@ -115,6 +116,7 @@ export function getResultPreview(generation: SavedGeneration): string {
       }
       return `${cards.length} flashcards generated${topicStr}`;
     }
+    return "Flashcards generated";
   }
 
   if (generation.generation_type === "important_questions") {
@@ -122,14 +124,21 @@ export function getResultPreview(generation: SavedGeneration): string {
     if (data && data.sections) {
       const qCount = data.sections.reduce((acc: number, sec: any) => acc + (sec.questions?.length || 0), 0);
       if (qCount > 0) {
-        const topics = Array.from(new Set(data.sections.flatMap((s: any) => s.questions?.map((q: any) => q.topic) || []).filter(Boolean)));
-        let topicStr = "";
-        if (topics.length > 0) {
-          topicStr = ` • ${topics.slice(0, 3).join(", ")}`;
+        // Collect section titles for "2-mark, 5-mark" type display, else fallback to topics
+        const sectionTitles = Array.from(new Set(data.sections.map((s: any) => s.title).filter(Boolean)));
+        let sectionStr = "";
+        if (sectionTitles.length > 0) {
+          sectionStr = ` • ${sectionTitles.slice(0, 3).join(", ")} sections`;
+        } else {
+          const topics = Array.from(new Set(data.sections.flatMap((s: any) => s.questions?.map((q: any) => q.topic) || []).filter(Boolean)));
+          if (topics.length > 0) {
+            sectionStr = ` • ${topics.slice(0, 3).join(", ")}`;
+          }
         }
-        return `${qCount} exam questions generated${topicStr}`;
+        return `${qCount} exam questions generated${sectionStr}`;
       }
     }
+    return "Important Questions generated";
   }
 
   if (generation.generation_type === "doubt_answer") {
@@ -137,22 +146,30 @@ export function getResultPreview(generation: SavedGeneration): string {
     if (data && data.question) {
       return `Question: ${data.question.slice(0, 80)}${data.question.length > 80 ? '...' : ''}`;
     }
+    return "Doubt Answer generated";
   }
 
   const text = safelyExtractText(generation.result_text, generation.result_json as Record<string, unknown> | null);
   
   if (!text || (text.trim().startsWith("{") && text.trim().endsWith("}"))) {
-    return "This saved result has no readable content.";
+    return "Smart Summary generated";
   }
 
-  const preview = text
+  // Get first clean sentence for summary
+  const cleanText = text
     .replace(/##\s*/g, "")
     .replace(/\*\*/g, "")
     .replace(/\n+/g, " ")
-    .trim()
-    .slice(0, 180);
+    .replace(/\[.*?\]/g, "")
+    .trim();
+    
+  const firstSentenceMatch = cleanText.match(/^[^.!?]*[.!?]/);
+  if (firstSentenceMatch && firstSentenceMatch[0].length > 10) {
+    return firstSentenceMatch[0].trim();
+  }
 
-  return preview || "No content.";
+  const preview = cleanText.slice(0, 120);
+  return preview ? preview + (cleanText.length > 120 ? '...' : '') : "Smart Summary generated";
 }
 
 export function parseMCQResult(resultText: string | null, resultJson: Record<string, unknown> | null): any[] | null {

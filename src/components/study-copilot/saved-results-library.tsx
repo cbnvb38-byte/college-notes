@@ -34,13 +34,25 @@ export function SavedResultsLibrary({ savedData }: SavedResultsLibraryProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Calculate counts for stats and tabs
+  const counts = useMemo(() => {
+    return {
+      all: savedData.length,
+      summary: savedData.filter((g) => g.generation_type === "summary").length,
+      mcq: savedData.filter((g) => g.generation_type === "mcq").length,
+      flashcards: savedData.filter((g) => g.generation_type === "flashcards").length,
+      doubt_answer: savedData.filter((g) => g.generation_type === "doubt_answer").length,
+      important_questions: savedData.filter((g) => g.generation_type === "important_questions").length,
+    };
+  }, [savedData]);
+
   const tabs = [
-    { id: "all", label: "All" },
-    { id: "summary", label: "Summaries" },
-    { id: "mcq", label: "Quizzes" },
-    { id: "flashcards", label: "Flashcards" },
-    { id: "doubt_answer", label: "Doubts" },
-    { id: "important_questions", label: "Important Questions" },
+    { id: "all", label: "All", count: counts.all },
+    { id: "summary", label: "Summaries", count: counts.summary },
+    { id: "mcq", label: "Quizzes", count: counts.mcq },
+    { id: "flashcards", label: "Flashcards", count: counts.flashcards },
+    { id: "important_questions", label: "Important Questions", count: counts.important_questions },
+    { id: "doubt_answer", label: "Doubts", count: counts.doubt_answer },
   ];
 
   const filteredAndSortedData = useMemo(() => {
@@ -102,24 +114,44 @@ export function SavedResultsLibrary({ savedData }: SavedResultsLibraryProps) {
   const renderEmptyState = () => {
     if (searchQuery.trim() !== "") {
       return (
-        <div className="border border-dashed border-zinc-800/60 rounded-2xl py-12 flex flex-col items-center gap-3 text-center bg-zinc-900/10 mt-4">
-          <Search className="h-8 w-8 text-zinc-600 mb-2" />
-          <p className="text-sm font-semibold text-zinc-400">No saved results match your search.</p>
+        <div className="border border-dashed border-zinc-800/60 rounded-2xl py-12 flex flex-col items-center justify-center gap-3 text-center bg-zinc-900/20 mt-4 shadow-inner">
+          <div className="bg-zinc-900 p-4 rounded-full border border-zinc-800/60 shadow-md">
+            <Search className="h-6 w-6 text-zinc-500" />
+          </div>
+          <p className="text-sm font-bold text-zinc-300">No saved results match your search.</p>
         </div>
       );
     }
 
     let message = "No saved study materials yet.";
-    if (activeTab === "summary") message = "No smart summaries saved yet.";
-    else if (activeTab === "mcq") message = "No practice quizzes saved yet.";
-    else if (activeTab === "flashcards") message = "No flashcards saved yet.";
-    else if (activeTab === "doubt_answer") message = "No saved doubts yet.";
-    else if (activeTab === "important_questions") message = "No important questions saved yet.";
+    let subMessage = "Generate a summary, quiz, flashcards, important questions, or doubt answer to build your library.";
+    
+    if (activeTab === "summary") {
+      message = "No summaries saved yet.";
+      subMessage = "Use Smart Summary on your notes to quickly revise key points.";
+    } else if (activeTab === "mcq") {
+      message = "No practice quizzes saved yet.";
+      subMessage = "Generate MCQs from your notes to test your knowledge.";
+    } else if (activeTab === "flashcards") {
+      message = "No flashcards saved yet.";
+      subMessage = "Turn your notes into flashcards for spaced repetition.";
+    } else if (activeTab === "doubt_answer") {
+      message = "No doubt answers saved yet.";
+      subMessage = "Select text in a note and Ask Doubt to get answers.";
+    } else if (activeTab === "important_questions") {
+      message = "No important questions saved yet.";
+      subMessage = "Generate exam-style questions to prepare for finals.";
+    }
 
     return (
-      <div className="border border-dashed border-zinc-800/60 rounded-2xl py-12 flex flex-col items-center gap-3 text-center bg-zinc-900/10 mt-4">
-        <Sparkles className="h-8 w-8 text-zinc-600 mb-2" />
-        <p className="text-sm font-semibold text-zinc-400">{message}</p>
+      <div className="border border-dashed border-zinc-800/60 rounded-2xl py-12 flex flex-col items-center justify-center gap-3 text-center bg-zinc-900/20 mt-4 shadow-inner px-4">
+        <div className="bg-zinc-900 p-4 rounded-full border border-zinc-800/60 shadow-md">
+          <Sparkles className="h-6 w-6 text-indigo-400" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-bold text-zinc-200">{message}</p>
+          <p className="text-xs text-zinc-500 max-w-sm mx-auto">{subMessage}</p>
+        </div>
       </div>
     );
   };
@@ -127,24 +159,58 @@ export function SavedResultsLibrary({ savedData }: SavedResultsLibraryProps) {
   return (
     <div className="flex flex-col gap-6 w-full">
       
+      {/* Stats Row */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-xl">
+          <span className="text-base sm:text-lg font-black text-indigo-400 leading-none">{counts.all}</span>
+          <span className="text-[9px] sm:text-[10px] font-bold text-indigo-300 uppercase tracking-wider">Saved</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-zinc-900/50 border border-zinc-800/80 px-3 py-1.5 rounded-xl">
+          <span className="text-xs sm:text-sm font-bold text-zinc-300 leading-none">{counts.summary}</span>
+          <span className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Summaries</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-zinc-900/50 border border-zinc-800/80 px-3 py-1.5 rounded-xl">
+          <span className="text-xs sm:text-sm font-bold text-zinc-300 leading-none">{counts.mcq}</span>
+          <span className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Quizzes</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-zinc-900/50 border border-zinc-800/80 px-3 py-1.5 rounded-xl">
+          <span className="text-xs sm:text-sm font-bold text-zinc-300 leading-none">{counts.flashcards}</span>
+          <span className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Flashcards</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-zinc-900/50 border border-zinc-800/80 px-3 py-1.5 rounded-xl">
+          <span className="text-xs sm:text-sm font-bold text-zinc-300 leading-none">{counts.important_questions}</span>
+          <span className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Important Q's</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-zinc-900/50 border border-zinc-800/80 px-3 py-1.5 rounded-xl">
+          <span className="text-xs sm:text-sm font-bold text-zinc-300 leading-none">{counts.doubt_answer}</span>
+          <span className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Doubts</span>
+        </div>
+      </div>
+
       {/* Filters and Search Bar */}
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-zinc-900/30 p-2.5 rounded-2xl border border-zinc-800/60 backdrop-blur-md relative z-20">
         
         {/* Tabs */}
-        <div className="flex items-center gap-1 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => handleTabChange(tab.id as TabType)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                activeTab === tab.id
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
-                  : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-1.5 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id as TabType)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${
+                  isActive
+                    ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.1)]"
+                    : "bg-zinc-900/50 text-zinc-400 border-zinc-800/60 hover:bg-zinc-800 hover:text-zinc-200 hover:border-zinc-700"
+                }`}
+              >
+                {tab.label}
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-md ${isActive ? 'bg-indigo-500/20 text-indigo-300' : 'bg-zinc-800 text-zinc-500'}`}>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Search & Sort */}
@@ -210,13 +276,13 @@ export function SavedResultsLibrary({ savedData }: SavedResultsLibraryProps) {
 
       {/* Load More Button */}
       {hasMore && (
-        <div className="flex justify-center mt-2 mb-2">
+        <div className="flex justify-center mt-6 mb-2">
           <Button
             variant="outline"
             onClick={() => setVisibleCount((prev) => prev + 6)}
-            className="bg-zinc-900/50 border-zinc-700 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-50 rounded-xl px-8 h-10 text-xs font-bold transition-all shadow-lg"
+            className="bg-zinc-900/50 border border-zinc-700/60 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 hover:border-zinc-600 rounded-xl px-8 h-10 text-xs font-bold transition-all shadow-lg"
           >
-            Load More
+            Load More Results
           </Button>
         </div>
       )}

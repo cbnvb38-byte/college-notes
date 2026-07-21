@@ -304,15 +304,15 @@ export default async function StudyCopilotPage() {
           </div>
         </div>
 
-        {/* ── C. Saved Summaries ── */}
+        {/* ── C. Saved Study Library ── */}
         <div className="flex flex-col gap-5">
           <div className="flex items-center justify-between px-1">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <BookOpen className="h-5 w-5 text-indigo-400" />
-                <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Saved Results</h2>
+                <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Saved Study Library</h2>
               </div>
-              <p className="text-xs text-zinc-500">Your generated summaries and practice quizzes.</p>
+              <p className="text-xs text-zinc-500">Your summaries, quizzes, flashcards, important questions, and doubt answers stay ready here.</p>
             </div>
             {hasSaved && (
               <span className="text-[10px] text-zinc-500 bg-zinc-900/50 border border-zinc-800 px-2.5 py-1 rounded-full font-medium shrink-0">
