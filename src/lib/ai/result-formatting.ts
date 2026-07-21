@@ -6,6 +6,20 @@ export interface ParsedSection {
 }
 
 /**
+ * Normalizes AI generated text by replacing escaped characters like \\n with actual newlines,
+ * so that it renders cleanly in Markdown.
+ */
+export function normalizeAITextForMarkdown(text: string | undefined | null): string {
+  if (!text) return "";
+  
+  return text
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\\*/g, "*")
+    .trim();
+}
+
+/**
  * Handle old saved rows that may have plain text only, result_text with JSON string,
  * or proper result_json.
  */
@@ -41,7 +55,7 @@ function safelyExtractText(resultText: string | null, resultJson: Record<string,
 }
 
 export function parseSummarySections(resultText: string | null, resultJson: Record<string, unknown> | null): ParsedSection[] {
-  const text = safelyExtractText(resultText, resultJson);
+  let text = safelyExtractText(resultText, resultJson);
 
   if (!text) {
     return [{ heading: "Summary", content: "This saved result has no readable content." }];
@@ -52,6 +66,7 @@ export function parseSummarySections(resultText: string | null, resultJson: Reco
     return [{ heading: "Raw Data", content: text }];
   }
 
+  text = normalizeAITextForMarkdown(text);
   const normalised = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
   const headingRegex =
@@ -230,10 +245,10 @@ export function parseMCQResult(resultText: string | null, resultJson: Record<str
     }
 
     return {
-      question: String(q.question || ""),
-      options,
-      answer,
-      explanation: String(q.explanation || ""),
+      question: normalizeAITextForMarkdown(String(q.question || "")),
+      options: options.map(o => normalizeAITextForMarkdown(o)),
+      answer: normalizeAITextForMarkdown(answer),
+      explanation: normalizeAITextForMarkdown(String(q.explanation || "")),
       difficulty: q.difficulty || "medium",
       topic: q.topic || "",
     };
@@ -300,8 +315,8 @@ export function parseFlashcardsResult(resultText: string | null, resultJson: Rec
   }
 
   return rawCards.map((c: any) => ({
-    front: String(c.front || c.question || c.term || ""),
-    back: String(c.back || c.answer || c.definition || ""),
+    front: normalizeAITextForMarkdown(String(c.front || c.question || c.term || "")),
+    back: normalizeAITextForMarkdown(String(c.back || c.answer || c.definition || "")),
     topic: c.topic || "",
     difficulty: c.difficulty || "medium",
   }));
@@ -351,12 +366,12 @@ export function parseImportantQuestionsResult(resultText: string | null, resultJ
   const sections = parsed.sections.map((s: any) => ({
     title: String(s.title || "Questions"),
     questions: (Array.isArray(s.questions) ? s.questions : []).map((q: any) => ({
-      question: String(q.question || ""),
-      answer_hint: q.answer_hint ? String(q.answer_hint) : undefined,
+      question: normalizeAITextForMarkdown(String(q.question || "")),
+      answer_hint: q.answer_hint ? normalizeAITextForMarkdown(String(q.answer_hint)) : undefined,
       marks: q.marks ? Number(q.marks) : undefined,
       topic: q.topic ? String(q.topic) : undefined,
       difficulty: q.difficulty || "medium",
-      why_important: q.why_important ? String(q.why_important) : undefined
+      why_important: q.why_important ? normalizeAITextForMarkdown(String(q.why_important)) : undefined
     }))
   }));
 
@@ -401,14 +416,14 @@ export function parseDoubtAnswerResult(resultText: string | null, resultJson: Re
   if (!parsed || !parsed.question || (!parsed.answer && !parsed.note_based_answer && !parsed.general_explanation)) return null;
 
   return {
-    question: String(parsed.question || ""),
-    answer: parsed.answer ? String(parsed.answer) : undefined,
-    note_based_answer: parsed.note_based_answer ? String(parsed.note_based_answer) : undefined,
-    general_explanation: parsed.general_explanation ? String(parsed.general_explanation) : undefined,
-    simple_explanation: parsed.simple_explanation ? String(parsed.simple_explanation) : undefined,
-    key_points: Array.isArray(parsed.key_points) ? parsed.key_points.map(String) : undefined,
-    related_topics: Array.isArray(parsed.related_topics) ? parsed.related_topics.map(String) : undefined,
-    exam_tip: parsed.exam_tip ? String(parsed.exam_tip) : undefined,
+    question: normalizeAITextForMarkdown(String(parsed.question || "")),
+    answer: parsed.answer ? normalizeAITextForMarkdown(String(parsed.answer)) : undefined,
+    note_based_answer: parsed.note_based_answer ? normalizeAITextForMarkdown(String(parsed.note_based_answer)) : undefined,
+    general_explanation: parsed.general_explanation ? normalizeAITextForMarkdown(String(parsed.general_explanation)) : undefined,
+    simple_explanation: parsed.simple_explanation ? normalizeAITextForMarkdown(String(parsed.simple_explanation)) : undefined,
+    key_points: Array.isArray(parsed.key_points) ? parsed.key_points.map((kp: any) => normalizeAITextForMarkdown(String(kp))) : undefined,
+    related_topics: Array.isArray(parsed.related_topics) ? parsed.related_topics.map((rt: any) => normalizeAITextForMarkdown(String(rt))) : undefined,
+    exam_tip: parsed.exam_tip ? normalizeAITextForMarkdown(String(parsed.exam_tip)) : undefined,
     confidence: parsed.confidence ? String(parsed.confidence) : undefined,
     source_status: parsed.source_status ? String(parsed.source_status) : undefined
   };
