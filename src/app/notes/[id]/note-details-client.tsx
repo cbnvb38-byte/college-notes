@@ -19,6 +19,13 @@ import {
   Bookmark,
   ChevronDown,
   ChevronUp,
+  ArrowRight,
+  Crown,
+  Zap,
+  Brain,
+  Library,
+  Timer,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -696,66 +703,125 @@ export default function NoteDetailsClient({
                       ⚠ No PDF — AI not available
                     </span>
                   )}
-                  {usageState && (
-                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border ${
-                      usageState.plan === "premium" 
-                        ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                        : "bg-zinc-800 text-zinc-300 border-zinc-700"
-                    }`}>
-                      {usageState.plan === "premium" ? "Premium Plan" : "Free Plan"}
-                    </span>
-                  )}
                 </div>
-                {usageState && (
-                  <p className="text-[10px] text-zinc-400 mt-2 font-medium">
-                    AI Generations: <span className="text-zinc-200">{usageState.usedThisMonth} / {usageState.monthlyLimit}</span> this month
-                  </p>
+
+                {usageState && usageState.plan === "premium" && (
+                  <div className="mt-4 bg-gradient-to-br from-indigo-950/40 to-purple-950/20 border border-indigo-500/20 p-3.5 rounded-xl shadow-[0_0_15px_rgba(79,70,229,0.05)] relative overflow-hidden">
+                     <div className="absolute -top-2 -right-2 p-2 opacity-[0.03] pointer-events-none transform rotate-12"><Crown className="h-16 w-16 text-amber-400" /></div>
+                     <div className="flex items-center gap-2 mb-2 relative z-10">
+                       <span className="bg-gradient-to-r from-amber-400 to-amber-200 text-zinc-950 text-[9px] px-2 py-0.5 rounded-full font-extrabold uppercase tracking-widest shadow-sm flex items-center gap-1">
+                         <Crown className="h-3 w-3" /> Premium Member
+                       </span>
+                     </div>
+                     <h4 className="text-xs font-bold text-indigo-100 mb-0.5 relative z-10">Your premium Study Copilot is active.</h4>
+                     <p className="text-[10px] text-indigo-300/70 mb-4 font-medium relative z-10">Higher monthly AI limit unlocked.</p>
+                     
+                     <div className="flex flex-col gap-1.5 relative z-10">
+                       <div className="flex items-center justify-between text-[10px] font-bold">
+                         <span className="text-indigo-200/60 uppercase tracking-wider">Usage</span>
+                         <span className={usageState.usedThisMonth >= usageState.monthlyLimit ? "text-amber-400" : "text-amber-300"}>
+                           {usageState.usedThisMonth} / {usageState.monthlyLimit} <span className="text-indigo-300/50">generations</span>
+                         </span>
+                       </div>
+                       <div className="h-1.5 w-full bg-zinc-950/50 rounded-full overflow-hidden border border-indigo-500/20">
+                         <div 
+                           className={`h-full transition-all duration-500 bg-gradient-to-r ${usageState.usedThisMonth >= usageState.monthlyLimit ? "from-red-500 to-amber-500" : "from-indigo-500 to-purple-400"} shadow-[0_0_10px_rgba(168,85,247,0.4)]`}
+                           style={{ width: `${Math.min(100, (usageState.usedThisMonth / usageState.monthlyLimit) * 100)}%` }}
+                         />
+                       </div>
+                     </div>
+                  </div>
+                )}
+
+                {usageState && usageState.plan === "free" && (
+                  <div className="mt-4 bg-zinc-950/50 border border-zinc-800/60 p-3.5 rounded-xl">
+                    <div className="flex items-center justify-between mb-2">
+                       <span className="bg-zinc-800 text-zinc-300 border border-zinc-700 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                         Free Plan
+                       </span>
+                    </div>
+                    <div className="flex flex-col gap-1.5 mt-2">
+                       <div className="flex items-center justify-between text-[10px] font-bold">
+                         <span className="text-zinc-400">AI Generations</span>
+                         <span className={usageState.usedThisMonth >= usageState.monthlyLimit ? "text-red-400" : "text-zinc-200"}>
+                           {usageState.usedThisMonth} / {usageState.monthlyLimit}
+                         </span>
+                       </div>
+                       <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden border border-zinc-800/50">
+                         <div 
+                           className={`h-full transition-all duration-500 ${
+                             usageState.usedThisMonth >= usageState.monthlyLimit 
+                               ? "bg-red-500" 
+                               : usageState.usedThisMonth >= (usageState.monthlyLimit * 0.8)
+                                 ? "bg-amber-500"
+                                 : "bg-indigo-500"
+                           }`}
+                           style={{ width: `${Math.min(100, (usageState.usedThisMonth / usageState.monthlyLimit) * 100)}%` }}
+                         />
+                       </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-zinc-800/40">
+                      <p className="text-[10px] text-zinc-400 mb-2 leading-relaxed">
+                        Unlock <span className="font-bold text-zinc-300">100 monthly AI generations</span> and advanced study workflows.
+                      </p>
+                      <Link href="/pricing" className="block">
+                        <Button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-8 text-[11px] rounded-lg transition-all shadow-md shadow-indigo-500/10 active:scale-[0.98]">
+                          Upgrade to Premium
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
                 )}
               </div>
             </CardHeader>
 
             <CardContent className="pt-4 pb-5 flex flex-col gap-4 relative z-10">
               
-              {usageState && usageState.usedThisMonth >= usageState.monthlyLimit ? (
-                <div className="bg-zinc-950/50 border border-red-500/20 p-4 rounded-xl flex flex-col items-center justify-center text-center gap-3">
-                  <div className="bg-red-500/10 p-2 rounded-full">
-                    <FileWarning className="h-5 w-5 text-red-400" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold text-red-400">Limit Reached</p>
-                    <p className="text-xs text-zinc-400">
-                      {usageState.plan === "premium"
-                        ? "You have used all premium AI generations for this month."
-                        : "You have used all free AI generations for this month."}
+              {/* Limit Reached / Near Limit Warning Card */}
+              {usageState && usageState.usedThisMonth >= usageState.monthlyLimit * 0.8 && (
+                <div className={`bg-zinc-950/80 border p-4 rounded-xl flex flex-col items-start gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 ${usageState.usedThisMonth >= usageState.monthlyLimit ? "border-red-500/30 shadow-red-500/5" : "border-amber-500/30 shadow-amber-500/5"}`}>
+                  <div className="flex items-center gap-2">
+                    <FileWarning className={`h-4 w-4 ${usageState.usedThisMonth >= usageState.monthlyLimit ? "text-red-400" : "text-amber-400"}`} />
+                    <p className={`text-xs font-bold ${usageState.usedThisMonth >= usageState.monthlyLimit ? "text-red-400" : "text-amber-400"}`}>
+                      {usageState.usedThisMonth >= usageState.monthlyLimit 
+                        ? (usageState.plan === "premium" ? "You have reached your premium monthly AI limit." : "You have used all free AI generations this month.")
+                        : `You are close to your ${usageState.plan === "premium" ? "premium" : "free"} monthly AI limit.`}
                     </p>
                   </div>
+                  {usageState.plan === "free" && (
+                    <p className="text-[11px] text-zinc-400 leading-relaxed">
+                      Upgrade to Premium for more monthly generations and advanced study workflows.
+                    </p>
+                  )}
                   <div className="flex gap-2 w-full mt-1">
-                    <Link href="/pricing" className="w-full">
-                      <Button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-9 text-xs rounded-lg transition-all active:scale-[0.98]">
-                        Upgrade to Premium
-                      </Button>
-                    </Link>
+                    {usageState.plan === "free" && (
+                      <Link href="/pricing" className="flex-1">
+                        <Button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-8 text-[11px] rounded-lg transition-all active:scale-[0.98]">
+                          Upgrade to Premium
+                        </Button>
+                      </Link>
+                    )}
                     <Button 
                       variant="outline" 
-                      className="w-full bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 h-9 text-xs font-bold rounded-lg transition-all"
+                      className="flex-1 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 h-8 text-[11px] font-bold rounded-lg transition-all"
                       onClick={() => {
                         document.getElementById('saved-results-section')?.scrollIntoView({ behavior: 'smooth' });
                       }}
                     >
-                      View Saved
+                      View Saved Results
                     </Button>
                   </div>
                 </div>
-              ) : (
-                <>
-                  {/* Primary Tools */}
-                  <div className="flex flex-col gap-2.5">
+              )}
+
+              {/* Primary Tools */}
+              <div className="flex flex-col gap-2.5">
                 {STUDY_TOOLS.filter(t => t.priority === "primary").map((tool) => {
                   const Icon = tool.icon;
                   return (
                     <Button
                       key={tool.id}
-                      disabled={!tool.enabled || isGenerating !== null}
+                      disabled={!tool.enabled || isGenerating !== null || (usageState !== null && usageState.usedThisMonth >= usageState.monthlyLimit)}
                       variant="outline"
                       className="w-full justify-start border-zinc-800/60 text-zinc-300 h-auto py-3 px-3.5 relative overflow-hidden bg-zinc-950/50 flex flex-col items-start gap-1.5 hover:bg-zinc-900/80 hover:border-indigo-500/30 transition-all disabled:opacity-50"
                       onClick={() => {
@@ -808,7 +874,7 @@ export default function NoteDetailsClient({
                       return (
                         <Button
                           key={tool.id}
-                          disabled={!tool.enabled || isGenerating !== null}
+                          disabled={!tool.enabled || isGenerating !== null || (usageState !== null && usageState.usedThisMonth >= usageState.monthlyLimit)}
                           variant="outline"
                           className="w-full justify-start border-zinc-800/50 text-zinc-400 h-auto py-2.5 px-3 bg-zinc-950/30 flex flex-col items-start gap-1 hover:bg-zinc-900/60 disabled:opacity-50"
                           onClick={() => {
@@ -924,8 +990,8 @@ export default function NoteDetailsClient({
                 </div>
               )}
               
-              </>
-              )}
+
+
             </CardContent>
           </Card>
         </div>

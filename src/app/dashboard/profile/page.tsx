@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useTransition } from "react";
 import { useUser } from "@clerk/nextjs";
-import { User, Mail, GraduationCap, Calendar, ShieldAlert, Loader2 } from "lucide-react";
+import { User, Mail, GraduationCap, Calendar, ShieldAlert, Loader2, Sparkles, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { getUserAIUsage, UserAIUsage } from "@/app/actions/ai-usage";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useSupabase } from "@/hooks/useSupabase";
@@ -27,6 +29,9 @@ export default function ProfilePage() {
   const [isBioPublic, setIsBioPublic] = useState(true);
   const [isAvatarPublic, setIsAvatarPublic] = useState(true);
 
+  // AI Usage state
+  const [usageState, setUsageState] = useState<UserAIUsage | null>(null);
+
   useEffect(() => {
     if (user?.id) {
       supabase
@@ -46,6 +51,12 @@ export default function ProfilePage() {
             setIsAvatarPublic(data.is_avatar_public);
           }
         });
+        
+      getUserAIUsage().then((res) => {
+        if (res.success && res.data) {
+          setUsageState(res.data);
+        }
+      });
     }
   }, [user?.id, supabase]);
 
@@ -135,6 +146,54 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
+        {/* AI Usage Card */}
+        {usageState && (
+          <Card className="bg-zinc-900/30 border-zinc-800/60 backdrop-blur-sm shadow-xl md:col-span-1">
+            <CardHeader className="pb-3 border-b border-zinc-800/40">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-bold text-zinc-200 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-indigo-400" /> AI Subscription
+                </CardTitle>
+                <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border ${
+                  usageState.plan === "premium" 
+                    ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                    : "bg-zinc-800 text-zinc-300 border-zinc-700"
+                }`}>
+                  {usageState.plan === "premium" ? "Premium" : "Free"}
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4 flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-[10px] font-bold">
+                  <span className="text-zinc-400">Monthly AI Generations</span>
+                  <span className={usageState.usedThisMonth >= usageState.monthlyLimit ? "text-red-400" : "text-zinc-200"}>
+                    {usageState.usedThisMonth} / {usageState.monthlyLimit}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full bg-zinc-950 rounded-full overflow-hidden border border-zinc-800/50">
+                  <div 
+                    className={`h-full transition-all duration-500 ${
+                      usageState.usedThisMonth >= usageState.monthlyLimit 
+                        ? "bg-red-500" 
+                        : usageState.usedThisMonth >= (usageState.monthlyLimit * 0.8)
+                          ? "bg-amber-500"
+                          : "bg-indigo-500"
+                    }`}
+                    style={{ width: `${Math.min(100, (usageState.usedThisMonth / usageState.monthlyLimit) * 100)}%` }}
+                  />
+                </div>
+                {usageState.plan === "free" && (
+                  <Link href="/pricing" className="mt-3">
+                    <Button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-9 text-xs rounded-xl transition-all shadow-lg shadow-indigo-500/10">
+                      Upgrade to Premium <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {/* Right column: Details form */}
         <Card className="bg-zinc-900/30 border-zinc-800/60 backdrop-blur-sm shadow-xl md:col-span-2">
           <CardHeader className="pb-3 border-b border-zinc-800/40">

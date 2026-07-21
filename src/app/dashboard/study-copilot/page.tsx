@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Sparkles,
   Activity,
@@ -14,9 +15,15 @@ import {
   Search,
   BookOpen,
   ArrowRight,
+  Crown,
+  Eye,
+  Timer,
+  Brain,
+  FileWarning
 } from "lucide-react";
 import { STUDY_TOOLS, StudyToolGroup } from "@/lib/ai/study-tools";
 import { getMyAIGenerations } from "@/app/actions/copilot-history";
+import { getUserAIUsage } from "@/app/actions/ai-usage";
 import { SavedResultsLibrary } from "@/components/study-copilot/saved-results-library";
 
 export const dynamic = "force-dynamic";
@@ -29,8 +36,10 @@ export const metadata = {
 
 export default async function StudyCopilotPage() {
   const { userId } = await auth();
+  const usageResult = await getUserAIUsage();
+  const usageState = usageResult.success ? usageResult.data : null;
 
-  const primaryTools = STUDY_TOOLS.filter((t) => t.priority === "primary");
+  const activeTools = STUDY_TOOLS.filter((t) => t.enabled);
 
   const groupedTools = STUDY_TOOLS.reduce((acc, tool) => {
     if (!acc[tool.group]) acc[tool.group] = [];
@@ -61,200 +70,237 @@ export default async function StudyCopilotPage() {
       <Header />
       <main className="flex-grow z-10 pt-24 pb-16 px-6 max-w-7xl mx-auto w-full flex flex-col gap-12">
 
-        {/* ── A. Hero ── */}
-        <div className="flex flex-col md:flex-row gap-8 items-start justify-between">
-          <div className="flex flex-col gap-4 max-w-2xl">
-            <div className="flex items-center gap-2.5">
-              <div className="bg-gradient-to-tr from-indigo-500 to-violet-500 p-2.5 rounded-xl text-white shadow-lg shadow-indigo-500/20">
-                <Sparkles className="h-6 w-6" />
+        {/* ── A. Hero Section ── */}
+        <div className="flex flex-col lg:flex-row gap-12 items-center justify-between relative mb-8">
+          <div className="flex flex-col gap-6 w-full lg:w-[55%] relative z-10">
+            {usageState?.plan === "premium" && (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/10 to-purple-500/10 border border-amber-500/20 w-fit">
+                <Crown className="h-4 w-4 text-amber-400" />
+                <span className="text-[11px] font-bold text-amber-400 uppercase tracking-widest">Premium AI Workspace</span>
               </div>
-              <span className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider hidden sm:block">
-                Premium AI Workspace
-              </span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-black text-zinc-100 tracking-tight leading-tight">
+            )}
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.1]">
               Study Copilot
             </h1>
-            <p className="text-sm sm:text-base text-zinc-400 leading-relaxed">
-              Your AI study command center — generate summaries, quizzes, flashcards, revision plans, and doubt answers directly from your uploaded notes.
+            <p className="text-base sm:text-lg text-zinc-400 leading-relaxed max-w-xl">
+              Turn your notes into summaries, quizzes, flashcards, important questions, and doubt answers.
             </p>
+            
+            {/* Micro-Benefits Row */}
+            <div className="flex flex-wrap gap-2.5 mt-2">
+              <div className="flex items-center gap-1.5 bg-zinc-900/60 border border-zinc-800 px-3 py-1.5 rounded-lg">
+                <FileText className="h-3.5 w-3.5 text-indigo-400" />
+                <span className="text-xs font-medium text-zinc-300">Built for uploaded notes</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-zinc-900/60 border border-zinc-800 px-3 py-1.5 rounded-lg">
+                <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                <span className="text-xs font-medium text-zinc-300">Source-grounded answers</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-zinc-900/60 border border-zinc-800 px-3 py-1.5 rounded-lg">
+                <Clock className="h-3.5 w-3.5 text-emerald-400" />
+                <span className="text-xs font-medium text-zinc-300">Fast exam revision</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-zinc-900/60 border border-zinc-800 px-3 py-1.5 rounded-lg">
+                <BookOpen className="h-3.5 w-3.5 text-violet-400" />
+                <span className="text-xs font-medium text-zinc-300">Saved result history</span>
+              </div>
+            </div>
           </div>
 
-          {/* 3D Hero Visual */}
-          <div className="relative shrink-0 w-full md:w-[340px] h-[240px] flex items-center justify-center pointer-events-none mt-8 md:mt-0">
-            <div 
-              className="relative w-full h-full flex items-center justify-center transform-gpu"
-              style={{ perspective: "1000px" }}
-            >
-              {/* Note Card (Bottom) */}
+          {/* Hero Visual Art */}
+          <div className="w-full lg:w-[45%] relative h-[280px] sm:h-[340px] flex items-center justify-center pointer-events-none">
+            {/* Glowing Orb Background */}
+            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[240px] h-[240px] rounded-full blur-[80px] ${usageState?.plan === "premium" ? "bg-gradient-to-r from-amber-500/20 via-purple-500/20 to-indigo-500/20" : "bg-indigo-500/20"}`} />
+            
+            {/* 3D Floating UI Composition */}
+            <div className="relative w-full h-full flex items-center justify-center" style={{ perspective: "1000px" }}>
+              {/* Back Card */}
               <div 
-                className="absolute w-48 h-64 bg-zinc-900/80 border border-zinc-700/50 rounded-2xl shadow-2xl backdrop-blur-md flex flex-col p-4 transition-transform duration-1000"
-                style={{ transform: "rotateX(20deg) rotateY(-20deg) rotateZ(-5deg) translateZ(-60px) translateX(20px)", opacity: 0.5 }}
+                className={`absolute w-48 h-56 rounded-2xl shadow-2xl backdrop-blur-md border flex flex-col p-4 transition-transform duration-1000 ${usageState?.plan === "premium" ? "bg-zinc-950/80 border-purple-500/20" : "bg-zinc-900/80 border-zinc-800"}`}
+                style={{ transform: "rotateX(15deg) rotateY(-25deg) rotateZ(-5deg) translateZ(-80px) translateX(30px)", opacity: 0.7 }}
               >
-                <div className="h-2 w-1/3 bg-zinc-700 rounded-full mb-3" />
-                <div className="h-1.5 w-full bg-zinc-800 rounded-full mb-2" />
-                <div className="h-1.5 w-4/5 bg-zinc-800 rounded-full mb-2" />
-                <div className="h-1.5 w-full bg-zinc-800 rounded-full mb-2" />
+                <div className="h-2 w-1/2 bg-zinc-800 rounded-full mb-3" />
+                <div className="h-1.5 w-full bg-zinc-800/80 rounded-full mb-2" />
+                <div className="h-1.5 w-4/5 bg-zinc-800/80 rounded-full mb-2" />
+                <div className="h-1.5 w-full bg-zinc-800/80 rounded-full mb-2" />
               </div>
 
-              {/* Glowing Summary Card (Middle) */}
+              {/* Main Center Card */}
               <div 
-                className="absolute w-52 h-64 bg-zinc-950 border border-indigo-500/30 rounded-2xl shadow-[0_0_40px_rgba(99,102,241,0.2)] backdrop-blur-xl flex flex-col p-5 transition-transform duration-1000"
-                style={{ transform: "rotateX(15deg) rotateY(-15deg) rotateZ(0deg) translateZ(0px)" }}
+                className={`absolute w-56 h-64 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] backdrop-blur-xl flex flex-col p-5 transition-transform duration-1000 border ${usageState?.plan === "premium" ? "bg-zinc-950/90 border-amber-500/30 shadow-[0_0_40px_rgba(245,158,11,0.15)]" : "bg-zinc-950/90 border-indigo-500/30 shadow-[0_0_40px_rgba(99,102,241,0.15)]"}`}
+                style={{ transform: "rotateX(10deg) rotateY(-15deg) translateZ(0px)" }}
               >
-                <div className="flex items-center gap-2 mb-4">
-                  <FileText className="h-5 w-5 text-indigo-400" />
-                  <div className="h-2.5 w-20 bg-indigo-500/20 rounded-full" />
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`p-2 rounded-lg ${usageState?.plan === "premium" ? "bg-amber-500/10 text-amber-400" : "bg-indigo-500/10 text-indigo-400"}`}>
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${usageState?.plan === "premium" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"}`}>AI GENERATED</div>
                 </div>
-                <div className="flex-1 flex flex-col gap-2">
+                <div className="flex-1 flex flex-col gap-2.5">
+                  <div className="h-2 w-3/4 bg-zinc-700 rounded-full mb-1" />
                   <div className="h-1.5 w-full bg-zinc-800 rounded-full" />
                   <div className="h-1.5 w-11/12 bg-zinc-800 rounded-full" />
                   <div className="h-1.5 w-full bg-zinc-800 rounded-full" />
                   <div className="h-1.5 w-4/5 bg-zinc-800 rounded-full" />
                 </div>
-                <div className="absolute -bottom-3 -right-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-lg backdrop-blur-md">
-                  <CheckCircle2 className="h-3 w-3" /> Saved
-                </div>
               </div>
 
-              {/* Quiz Bubble (Top Right) */}
+              {/* Top Right Floating Chip */}
               <div 
-                className="absolute bg-zinc-900/90 border border-violet-500/30 rounded-xl shadow-xl backdrop-blur-md p-3 flex items-center gap-2 transition-transform duration-1000"
-                style={{ transform: "rotateX(10deg) rotateY(-10deg) translateZ(40px) translateY(-80px) translateX(90px)" }}
+                className={`absolute rounded-xl shadow-xl backdrop-blur-md p-3 flex items-center gap-2 border transition-transform duration-1000 ${usageState?.plan === "premium" ? "bg-zinc-900/90 border-purple-500/30" : "bg-zinc-900/90 border-violet-500/30"}`}
+                style={{ transform: "rotateX(5deg) rotateY(-5deg) translateZ(50px) translateY(-70px) translateX(90px)" }}
               >
-                <BookOpen className="h-4 w-4 text-violet-400" />
-                <span className="text-[10px] font-bold text-zinc-300">Quiz Gen</span>
+                <BookOpen className={`h-4 w-4 ${usageState?.plan === "premium" ? "text-purple-400" : "text-violet-400"}`} />
+                <span className="text-[10px] font-bold text-zinc-200">Practice Quiz</span>
               </div>
 
-              {/* Flashcards Stack (Top Left) */}
+              {/* Bottom Left Floating Stack */}
               <div 
-                className="absolute w-24 h-16 bg-zinc-900/90 border border-zinc-700/50 rounded-lg shadow-xl backdrop-blur-md p-2 flex flex-col items-center justify-center transition-transform duration-1000"
-                style={{ transform: "rotateX(30deg) rotateY(10deg) rotateZ(-10deg) translateZ(30px) translateY(70px) translateX(-100px)" }}
+                className="absolute w-28 h-16 bg-zinc-900/90 border border-zinc-700/50 rounded-xl shadow-xl backdrop-blur-md p-3 flex flex-col items-center justify-center transition-transform duration-1000"
+                style={{ transform: "rotateX(20deg) rotateY(15deg) translateZ(40px) translateY(80px) translateX(-90px)" }}
               >
-                <Library className="h-4 w-4 text-zinc-500 mb-1" />
-                <span className="text-[9px] font-bold text-zinc-500 uppercase">Cards</span>
+                <Library className="h-4 w-4 text-emerald-400 mb-1" />
+                <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Cards Ready</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── B. Quick Start ── */}
-        <div className="flex flex-col gap-5">
+        {/* ── B. Plan Status Area ── */}
+        <div className="mb-4">
+          {usageState && usageState.plan === "premium" && (
+            <div className="bg-gradient-to-r from-zinc-950 to-zinc-900/80 border border-amber-500/20 p-5 sm:p-6 rounded-2xl shadow-[0_8px_30px_rgba(245,158,11,0.06)] relative overflow-hidden flex flex-col md:flex-row gap-6 items-center justify-between group">
+               {/* Decorative watermark */}
+               <div className="absolute -right-6 -bottom-10 opacity-[0.02] transform -rotate-12 pointer-events-none transition-transform group-hover:scale-110 duration-1000">
+                 <Crown className="h-48 w-48 text-amber-500" />
+               </div>
+               
+               <div className="flex flex-col gap-2 z-10 w-full md:w-auto">
+                 <div className="flex items-center gap-3">
+                   <span className="bg-gradient-to-r from-amber-500 to-amber-300 text-zinc-950 text-xs px-3 py-1 rounded-full font-extrabold uppercase tracking-widest shadow-md flex items-center gap-1.5 w-fit">
+                     <Crown className="h-4 w-4" /> PREMIUM MEMBER
+                   </span>
+                 </div>
+                 <h3 className="text-xl font-bold text-zinc-100 mt-1">Your premium Study Copilot is active.</h3>
+                 <p className="text-sm text-zinc-400">Unlocks higher monthly limits and advanced study workflows.</p>
+                 
+                 <div className="flex flex-wrap gap-4 mt-2">
+                   <div className="flex items-center gap-1.5 text-xs text-amber-200/80 font-medium">
+                     <Zap className="h-3.5 w-3.5" /> Higher AI Limit
+                   </div>
+                   <div className="flex items-center gap-1.5 text-xs text-amber-200/80 font-medium">
+                     <Eye className="h-3.5 w-3.5" /> Scanned PDF Support
+                   </div>
+                   <div className="flex items-center gap-1.5 text-xs text-amber-200/80 font-medium">
+                     <Sparkles className="h-3.5 w-3.5" /> Premium Boosters
+                   </div>
+                 </div>
+               </div>
+               
+               <div className="flex flex-col gap-2 z-10 w-full md:w-[320px] bg-zinc-950/60 p-4 rounded-xl border border-zinc-800/80">
+                 <div className="flex items-center justify-between text-sm font-bold">
+                   <span className="text-zinc-400">AI Usage</span>
+                   <span className={usageState.usedThisMonth >= usageState.monthlyLimit ? "text-red-400" : "text-amber-400"}>
+                     {usageState.usedThisMonth} <span className="text-zinc-500 font-medium">/ {usageState.monthlyLimit} generations</span>
+                   </span>
+                 </div>
+                 <div className="h-2.5 w-full bg-zinc-900 rounded-full overflow-hidden border border-zinc-800/80 relative">
+                   <div 
+                     className={`absolute top-0 left-0 h-full transition-all duration-700 bg-gradient-to-r ${usageState.usedThisMonth >= usageState.monthlyLimit ? "from-red-500 to-amber-500" : "from-amber-600 via-amber-400 to-amber-200"}`}
+                     style={{ width: `${Math.min(100, (usageState.usedThisMonth / usageState.monthlyLimit) * 100)}%` }}
+                   />
+                 </div>
+               </div>
+            </div>
+          )}
+
+          {usageState && usageState.plan === "free" && (
+            <div className="bg-zinc-950 border border-zinc-800 p-5 sm:p-6 rounded-2xl shadow-lg relative overflow-hidden flex flex-col md:flex-row gap-6 items-center justify-between">
+               <div className="flex flex-col gap-2 z-10 w-full md:w-auto">
+                 <div className="flex items-center gap-3">
+                   <span className="bg-zinc-800 text-zinc-300 border border-zinc-700 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider w-fit">
+                     Free Plan
+                   </span>
+                 </div>
+                 <h3 className="text-xl font-bold text-zinc-100 mt-1">Study Copilot is ready.</h3>
+                 <p className="text-sm text-zinc-400">Unlock 100 monthly AI generations and advanced study workflows with Premium.</p>
+                 <Link href="/pricing" className="mt-2 block w-fit">
+                   <Button className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-9 text-xs rounded-lg transition-all shadow-md shadow-indigo-500/10 px-6">
+                     Upgrade to Premium
+                   </Button>
+                 </Link>
+               </div>
+               
+               <div className="flex flex-col gap-2 z-10 w-full md:w-[320px] bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/50">
+                 <div className="flex items-center justify-between text-sm font-bold">
+                   <span className="text-zinc-400">AI Usage</span>
+                   <span className={usageState.usedThisMonth >= usageState.monthlyLimit ? "text-red-400" : "text-zinc-200"}>
+                     {usageState.usedThisMonth} <span className="text-zinc-500 font-medium">/ {usageState.monthlyLimit} generations</span>
+                   </span>
+                 </div>
+                 <div className="h-2.5 w-full bg-zinc-950 rounded-full overflow-hidden border border-zinc-800/80 relative">
+                   <div 
+                     className={`absolute top-0 left-0 h-full transition-all duration-700 ${
+                       usageState.usedThisMonth >= usageState.monthlyLimit 
+                         ? "bg-red-500" 
+                         : usageState.usedThisMonth >= (usageState.monthlyLimit * 0.8)
+                           ? "bg-amber-500"
+                           : "bg-indigo-500"
+                     }`}
+                     style={{ width: `${Math.min(100, (usageState.usedThisMonth / usageState.monthlyLimit) * 100)}%` }}
+                   />
+                 </div>
+                 {usageState.usedThisMonth >= usageState.monthlyLimit ? (
+                   <div className="mt-2 text-red-400 text-xs font-bold flex items-center gap-1.5">
+                     <FileWarning className="h-4 w-4" /> You have used all free generations.
+                   </div>
+                 ) : usageState.usedThisMonth >= usageState.monthlyLimit * 0.8 ? (
+                   <div className="mt-2 text-amber-400 text-xs font-bold flex items-center gap-1.5">
+                     <FileWarning className="h-4 w-4" /> You are close to your free limit.
+                   </div>
+                 ) : null}
+               </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── C. AI Tool Dock ── */}
+        <div className="flex flex-col gap-4 mt-2 mb-12">
           <div className="flex items-center gap-2 px-1">
             <Zap className="h-5 w-5 text-indigo-400" />
-            <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Quick Start</h2>
+            <h2 className="text-xl font-bold text-zinc-100 tracking-tight">AI Tool Dock</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {primaryTools.map((tool, idx) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
+            {activeTools.map((tool) => {
               const Icon = tool.icon;
-              const isActive = tool.enabled;
-              const isFirst = idx === 0;
               return (
-                <Card
+                <div
                   key={tool.id}
-                  className={`bg-zinc-900/40 border-zinc-800/60 backdrop-blur-md shadow-lg flex flex-col h-full relative overflow-hidden transition-colors ${
-                    isFirst ? "border-indigo-500/30 shadow-indigo-500/5 hover:bg-zinc-900/60" : "opacity-70"
-                  }`}
+                  className="bg-zinc-900/40 border border-zinc-800/60 hover:bg-zinc-900/80 hover:border-indigo-500/40 hover:shadow-[0_4px_20px_rgba(99,102,241,0.05)] backdrop-blur-md rounded-2xl p-4 flex flex-col gap-3 transition-all h-full group"
                 >
-                  {isFirst && (
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
-                  )}
-                  <CardHeader className="pb-3 relative z-10">
-                    <div className="flex items-start justify-between gap-2">
-                      <div
-                        className={`p-3 rounded-xl border ${
-                          isFirst
-                            ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
-                            : "bg-zinc-950 border-zinc-800 text-zinc-500"
-                        }`}
-                      >
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <span
-                        className={`text-[9px] px-2 py-0.5 rounded border whitespace-nowrap font-bold uppercase tracking-wider ${
-                          isActive
-                            ? "bg-indigo-500/10 text-indigo-300 border-indigo-500/30"
-                            : "bg-zinc-800/80 text-zinc-500 border-zinc-700"
-                        }`}
-                      >
-                        {tool.status}
-                      </span>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-indigo-400 group-hover:bg-indigo-500/10 group-hover:border-indigo-500/20 group-hover:text-indigo-300 transition-colors">
+                      <Icon className="h-5 w-5" />
                     </div>
-                    <CardTitle
-                      className={`font-bold text-zinc-100 mt-5 leading-tight ${isFirst ? "text-xl" : "text-lg"}`}
-                    >
-                      {tool.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-2 flex-1 flex flex-col justify-between relative z-10">
-                    <p className={`${isFirst ? "text-sm" : "text-xs"} text-zinc-400 leading-relaxed`}>
-                      {tool.description}
-                    </p>
-                    <div className="mt-6">
-                      {isActive ? (
-                        <Link href="/dashboard/browse">
-                          <button className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2">
-                            <Search className="h-3.5 w-3.5" /> Choose a Note
-                          </button>
-                        </Link>
-                      ) : (
-                        <button
-                          disabled
-                          className="w-full py-2.5 rounded-lg bg-zinc-800/50 text-zinc-500 font-bold text-xs uppercase tracking-wider border border-zinc-800 cursor-not-allowed"
-                        >
-                          Coming Later
-                        </button>
-                      )}
-                    </div>
-                    {isActive && (
-                      <p className="text-[10px] text-zinc-600 text-center mt-2">
-                        Open any approved PDF note to generate.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full border whitespace-nowrap font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                      Active
+                    </span>
+                  </div>
+                  <div className="mt-1">
+                    <h3 className="font-bold text-zinc-100 text-sm mb-1.5 group-hover:text-white transition-colors">{tool.title}</h3>
+                    <p className="text-xs text-zinc-400 leading-snug">{tool.description}</p>
+                  </div>
+                  <div className="mt-auto pt-4 flex flex-col gap-2">
+                    <span className="text-[10px] text-zinc-500 font-medium text-center bg-zinc-950 py-1 rounded-md border border-zinc-800/50">Open a note to use this tool</span>
+                    <Link href="/dashboard/browse">
+                      <button className="w-full py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold text-xs uppercase tracking-wider transition-colors border border-zinc-700 group-hover:border-zinc-600">
+                        Browse Notes
+                      </button>
+                    </Link>
+                  </div>
+                </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* ── B.5 Study Flow Section ── */}
-        <div className="flex flex-col gap-4 mt-2">
-          <div className="flex items-center gap-2 px-1">
-            <Activity className="h-5 w-5 text-indigo-400" />
-            <h2 className="text-xl font-bold text-zinc-100 tracking-tight">AI Study Flow</h2>
-          </div>
-          <div className="bg-zinc-900/30 border border-zinc-800/60 backdrop-blur-md rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 overflow-hidden relative">
-            {/* Connecting Line */}
-            <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-0.5 bg-zinc-800/80 hidden md:block z-0" />
-            
-            {/* Step 1 */}
-            <div className="relative z-10 flex flex-col items-center text-center gap-2 bg-zinc-950 px-4 py-3 rounded-xl border border-zinc-800/80 w-full md:w-1/4 shadow-lg shadow-black/20">
-              <div className="h-8 w-8 bg-zinc-900 border border-zinc-700 text-zinc-400 rounded-full flex items-center justify-center font-bold text-xs mb-1">1</div>
-              <span className="text-xs font-bold text-zinc-200">Upload Note</span>
-              <span className="text-[10px] text-zinc-500">PDF Document</span>
-            </div>
-            
-            {/* Step 2 */}
-            <div className="relative z-10 flex flex-col items-center text-center gap-2 bg-zinc-950 px-4 py-3 rounded-xl border border-indigo-500/30 w-full md:w-1/4 shadow-[0_0_20px_rgba(99,102,241,0.1)]">
-              <div className="h-8 w-8 bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 rounded-full flex items-center justify-center font-bold text-xs mb-1 shadow-[0_0_15px_rgba(99,102,241,0.2)]">2</div>
-              <span className="text-xs font-bold text-indigo-100">Smart Summary</span>
-              <span className="text-[10px] text-indigo-300/70">Understand Core</span>
-            </div>
-
-            {/* Step 3 */}
-            <div className="relative z-10 flex flex-col items-center text-center gap-2 bg-zinc-950 px-4 py-3 rounded-xl border border-zinc-800/80 w-full md:w-1/4 shadow-lg shadow-black/20 opacity-80">
-              <div className="h-8 w-8 bg-zinc-900 border border-zinc-700 text-zinc-400 rounded-full flex items-center justify-center font-bold text-xs mb-1">3</div>
-              <span className="text-xs font-bold text-zinc-300">Practice Quiz</span>
-              <span className="text-[10px] text-zinc-500">Test Knowledge</span>
-            </div>
-
-            {/* Step 4 */}
-            <div className="relative z-10 flex flex-col items-center text-center gap-2 bg-zinc-950 px-4 py-3 rounded-xl border border-zinc-800/80 w-full md:w-1/4 shadow-lg shadow-black/20 opacity-60">
-              <div className="h-8 w-8 bg-zinc-900 border border-zinc-700 text-zinc-400 rounded-full flex items-center justify-center font-bold text-xs mb-1">4</div>
-              <span className="text-xs font-bold text-zinc-400">Revise Weak Topics</span>
-              <span className="text-[10px] text-zinc-600">Master Concepts</span>
-            </div>
           </div>
         </div>
 
@@ -302,94 +348,107 @@ export default async function StudyCopilotPage() {
           )}
         </div>
 
-        {/* ── D. Tool Library ── */}
+        {/* ── D. Premium Study Boosters ── */}
         <div className="flex flex-col gap-5 mt-4">
-          <div className="flex items-center gap-2 px-1 mb-2">
-            <Library className="h-5 w-5 text-indigo-400" />
-            <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Tool Library</h2>
+          <div className="mb-2 flex items-start justify-between gap-4 px-1">
+            <div>
+              <h2 className="text-xl font-bold text-zinc-100 tracking-tight flex items-center gap-2">
+                <Crown className="h-5 w-5 text-amber-400" /> Premium Study Boosters
+              </h2>
+              <p className="text-sm text-zinc-400 mt-1">
+                {usageState?.plan === "premium" ? "Unlocked benefits for faster exam preparation." : "Upgrade to unlock a stronger Study Copilot."}
+              </p>
+            </div>
+            {usageState?.plan === "free" && (
+              <Link href="/pricing" className="shrink-0 mt-1">
+                <Button variant="outline" className="h-8 text-xs font-bold border-amber-500/20 text-amber-400 bg-amber-500/5 hover:bg-amber-500/10">
+                  View Plans
+                </Button>
+              </Link>
+            )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8">
-            {groupOrder.map((group) => {
-              const tools = groupedTools[group] || [];
-              if (tools.length === 0) return null;
-              return (
-                <div key={group} className="flex flex-col gap-3">
-                  <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-widest border-b border-zinc-800/50 pb-2">
-                    {group}
-                  </h3>
-                  <div className="flex flex-col gap-2">
-                    {tools.map((tool) => {
-                      const Icon = tool.icon;
-                      return (
-                        <div
-                          key={tool.id}
-                          className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/30 border border-zinc-800/40 hover:bg-zinc-900/60 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`p-2 rounded-lg border ${
-                                tool.enabled
-                                  ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
-                                  : "bg-zinc-950 border-zinc-800 text-zinc-500"
-                              }`}
-                            >
-                              <Icon className="h-4 w-4" />
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-sm font-bold text-zinc-200">{tool.title}</span>
-                              <span className="text-[10px] text-zinc-500 line-clamp-1">{tool.description}</span>
-                            </div>
-                          </div>
-                          <span
-                            className={`shrink-0 ml-4 text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded border ${
-                              tool.enabled
-                                ? "bg-indigo-500/10 text-indigo-300 border-indigo-500/30"
-                                : "bg-zinc-800/50 text-zinc-500 border-zinc-800"
-                            }`}
-                          >
-                            {tool.status}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="bg-zinc-950/40 border border-zinc-800/60 p-4 rounded-xl hover:border-amber-500/20 transition-all flex flex-col gap-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2 text-sm font-bold text-zinc-200">
+                  <Zap className="h-4 w-4 text-amber-400" /> 100 AI Generations
                 </div>
-              );
-            })}
+              </div>
+              <p className="text-xs text-zinc-400 leading-snug">More room for summaries, quizzes, flashcards, important questions, and doubts.</p>
+              <div className="mt-auto pt-2">
+                {usageState?.plan === "premium" ? (
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">Active</span>
+                ) : (
+                  <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">Unlock with Premium</span>
+                )}
+              </div>
+            </div>
+            
+            <div className="bg-zinc-950/40 border border-zinc-800/60 p-4 rounded-xl hover:border-amber-500/20 transition-all flex flex-col gap-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2 text-sm font-bold text-zinc-200">
+                  <Eye className="h-4 w-4 text-amber-400" /> Extended Scanned PDF Reading
+                </div>
+              </div>
+              <p className="text-xs text-zinc-400 leading-snug">Better support for scanned and handwritten notes.</p>
+              <div className="mt-auto pt-2">
+                {usageState?.plan === "premium" ? (
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">Active</span>
+                ) : (
+                  <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">Unlock with Premium</span>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-zinc-950/20 border border-zinc-800/40 opacity-70 p-4 rounded-xl flex flex-col gap-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2 text-sm font-bold text-zinc-300">
+                  <Timer className="h-4 w-4 text-zinc-500" /> Exam Sprint Mode
+                </div>
+              </div>
+              <p className="text-xs text-zinc-500 leading-snug">Guided exam revision from summary to quiz to weak areas.</p>
+              <div className="mt-auto pt-2">
+                <span className="text-[10px] bg-zinc-800 text-zinc-400 border border-zinc-700 px-2 py-1 rounded font-bold uppercase tracking-wider">Coming Soon</span>
+              </div>
+            </div>
+
+            <div className="bg-zinc-950/20 border border-zinc-800/40 opacity-70 p-4 rounded-xl flex flex-col gap-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2 text-sm font-bold text-zinc-300">
+                  <Library className="h-4 w-4 text-zinc-500" /> Multi-PDF Study Pack
+                </div>
+              </div>
+              <p className="text-xs text-zinc-500 leading-snug">Combine multiple notes into one complete study pack.</p>
+              <div className="mt-auto pt-2">
+                <span className="text-[10px] bg-zinc-800 text-zinc-400 border border-zinc-700 px-2 py-1 rounded font-bold uppercase tracking-wider">Coming Soon</span>
+              </div>
+            </div>
+
+            <div className="bg-zinc-950/20 border border-zinc-800/40 opacity-70 p-4 rounded-xl flex flex-col gap-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2 text-sm font-bold text-zinc-300">
+                  <Brain className="h-4 w-4 text-zinc-500" /> Memory Booster
+                </div>
+              </div>
+              <p className="text-xs text-zinc-500 leading-snug">Smarter flashcard review and revision reminders.</p>
+              <div className="mt-auto pt-2">
+                <span className="text-[10px] bg-zinc-800 text-zinc-400 border border-zinc-700 px-2 py-1 rounded font-bold uppercase tracking-wider">Coming Soon</span>
+              </div>
+            </div>
+
+            <div className="bg-zinc-950/20 border border-zinc-800/40 opacity-70 p-4 rounded-xl flex flex-col gap-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2 text-sm font-bold text-zinc-300">
+                  <CheckCircle2 className="h-4 w-4 text-zinc-500" /> Final Revision Sheet
+                </div>
+              </div>
+              <p className="text-xs text-zinc-500 leading-snug">One clean last-minute sheet with formulas, definitions, and important questions.</p>
+              <div className="mt-auto pt-2">
+                <span className="text-[10px] bg-zinc-800 text-zinc-400 border border-zinc-700 px-2 py-1 rounded font-bold uppercase tracking-wider">Coming Soon</span>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* ── E. Usage & Limits ── */}
-        <Card className="bg-zinc-900/30 border-zinc-800/60 backdrop-blur-md shadow-lg">
-          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-5">
-            <div className="bg-indigo-500/10 p-2.5 rounded-xl border border-indigo-500/20 shrink-0">
-              <Activity className="h-5 w-5 text-indigo-400" />
-            </div>
-            <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-              <span className="text-sm font-bold text-zinc-200">Usage &amp; Limits</span>
-              <span className="text-xs text-zinc-500">
-                Usage tracking is active for all Study Copilot tools.{" "}
-                {hasSaved && (
-                  <span className="text-zinc-400">
-                    You have {savedData.length} saved result{savedData.length === 1 ? "" : "s"} so far.
-                  </span>
-                )}
-              </span>
-            </div>
-            {hasSaved && (
-              <div className="flex items-center gap-2 shrink-0">
-                <Clock className="h-3.5 w-3.5 text-zinc-500" />
-                <span className="text-[11px] text-zinc-500">
-                  Last:{" "}
-                  {new Date(savedData[0].created_at).toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "short",
-                  })}
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
       </main>
       <Footer />
