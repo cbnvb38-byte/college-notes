@@ -5,7 +5,7 @@ import { GenerationType } from "@/lib/ai/types";
 import { createClient } from "@supabase/supabase-js";
 import { getStudyContentForNote } from "@/lib/ai/document-content";
 import { GoogleGenAI } from "@google/genai";
-import { parseMCQResult } from "@/lib/ai/result-formatting";
+import { parseMCQResult, parseFlashcardsResult } from "@/lib/ai/result-formatting";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -479,8 +479,6 @@ async function saveAIGenerationResult({
       resultJson = null;
     }
   } else if (generationType === "flashcards") {
-    // Import dynamically or assume it's available. Actually we need to import it at the top of the file!
-    const { parseFlashcardsResult } = await import("@/lib/ai/result-formatting");
     const parsed = parseFlashcardsResult(finalResultText, null);
     devLog("[Flashcards Save] raw output length:", finalResultText?.length ?? 0);
     if (parsed && Array.isArray(parsed) && parsed.length > 0) {
