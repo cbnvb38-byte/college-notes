@@ -78,7 +78,7 @@ export const STUDY_TOOLS: StudyToolConfig[] = [
     group: "Doubt Solving",
     priority: "primary",
     icon: User,
-    status: "Coming later",
-    enabled: false,
+    status: "Active",
+    enabled: true,
   },
 ];

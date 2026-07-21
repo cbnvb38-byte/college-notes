@@ -117,6 +117,13 @@ export function getResultPreview(generation: SavedGeneration): string {
     }
   }
 
+  if (generation.generation_type === "doubt_answer") {
+    const data = parseDoubtAnswerResult(generation.result_text, generation.result_json as Record<string, unknown> | null);
+    if (data && data.question) {
+      return `Question: ${data.question.slice(0, 80)}${data.question.length > 80 ? '...' : ''}`;
+    }
+  }
+
   const text = safelyExtractText(generation.result_text, generation.result_json as Record<string, unknown> | null);
   
   if (!text || (text.trim().startsWith("{") && text.trim().endsWith("}"))) {
@@ -356,6 +363,57 @@ export function parseImportantQuestionsResult(resultText: string | null, resultJ
   return { sections };
 }
 
+export function parseDoubtAnswerResult(resultText: string | null, resultJson: Record<string, unknown> | null): any | null {
+  let parsed: any = null;
+
+  if (resultJson && resultJson.question && (resultJson.answer || resultJson.note_based_answer || resultJson.general_explanation)) {
+    parsed = resultJson;
+  }
+
+  if (!parsed && resultText) {
+    let textToParse = resultText.trim();
+    
+    const jsonFenceMatch = /```json\s*([\s\S]*?)\s*```/i.exec(textToParse);
+    if (jsonFenceMatch && jsonFenceMatch[1]) {
+      textToParse = jsonFenceMatch[1].trim();
+    } else if (textToParse.startsWith("{") && textToParse.endsWith("}")) {
+      // JSON string
+    } else {
+      const firstBrace = textToParse.indexOf("{");
+      const lastBrace = textToParse.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        textToParse = textToParse.slice(firstBrace, lastBrace + 1);
+      }
+    }
+    
+    textToParse = textToParse.replace(/(?<!\\)\\([a-zA-Z])/g, "\\\\$1");
+
+    try {
+      const p = JSON.parse(textToParse);
+      if (p.question && (p.answer || p.note_based_answer || p.general_explanation)) {
+        parsed = p;
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  if (!parsed || !parsed.question || (!parsed.answer && !parsed.note_based_answer && !parsed.general_explanation)) return null;
+
+  return {
+    question: String(parsed.question || ""),
+    answer: parsed.answer ? String(parsed.answer) : undefined,
+    note_based_answer: parsed.note_based_answer ? String(parsed.note_based_answer) : undefined,
+    general_explanation: parsed.general_explanation ? String(parsed.general_explanation) : undefined,
+    simple_explanation: parsed.simple_explanation ? String(parsed.simple_explanation) : undefined,
+    key_points: Array.isArray(parsed.key_points) ? parsed.key_points.map(String) : undefined,
+    related_topics: Array.isArray(parsed.related_topics) ? parsed.related_topics.map(String) : undefined,
+    exam_tip: parsed.exam_tip ? String(parsed.exam_tip) : undefined,
+    confidence: parsed.confidence ? String(parsed.confidence) : undefined,
+    source_status: parsed.source_status ? String(parsed.source_status) : undefined
+  };
+}
+
 export function getCopyableResultText(generation: SavedGeneration): string {
   const lines: string[] = [];
   const typeLabel = getGenerationTypeLabel(generation.generation_type);
@@ -415,6 +473,73 @@ export function getCopyableResultText(generation: SavedGeneration): string {
     }
   }
 
+  if (generation.generation_type === "doubt_answer") {
+    const data = parseDoubtAnswerResult(generation.result_text, generation.result_json as Record<string, unknown> | null);
+    if (data && data.question) {
+      lines.push(`Question:`);
+      lines.push(data.question);
+      lines.push("");
+      
+      if (data.answer) {
+        lines.push(`Answer:`);
+        lines.push(data.answer);
+        lines.push("");
+      }
+
+      if (data.note_based_answer) {
+        lines.push(`From Your Note:`);
+        lines.push(data.note_based_answer);
+        lines.push("");
+      }
+
+      if (data.general_explanation) {
+        lines.push(`General Explanation:`);
+        lines.push(data.general_explanation);
+        lines.push("");
+      }
+      
+      if (data.simple_explanation) {
+        lines.push(`In Simple Words:`);
+        lines.push(data.simple_explanation);
+        lines.push("");
+      }
+      
+      if (data.key_points && data.key_points.length > 0) {
+        lines.push(`Key Points:`);
+        data.key_points.forEach((kp: string) => lines.push(`- ${kp}`));
+        lines.push("");
+      }
+      
+      if (data.related_topics && data.related_topics.length > 0) {
+        lines.push(`Related Topics:`);
+        data.related_topics.forEach((rt: string) => lines.push(`- ${rt}`));
+        lines.push("");
+      }
+      
+      if (data.exam_tip) {
+        lines.push(`Exam Tip:`);
+        lines.push(data.exam_tip);
+        lines.push("");
+      }
+      
+      if (data.source_status) {
+        let status = data.source_status;
+        if (status === "fully_answered_from_note") status = "Fully answered from note";
+        if (status === "partially_available_in_note") status = "Partially available in note";
+        if (status === "not_available_in_note") status = "Not available in note";
+        lines.push(`Source Status: ${status}`);
+        lines.push("");
+      }
+
+      if (data.confidence) {
+        lines.push(`Confidence: ${data.confidence}`);
+        lines.push("");
+      }
+      
+      return lines.join("\n").trim();
+    }
+  }
+
   const text = safelyExtractText(generation.result_text, generation.result_json as Record<string, unknown> | null);
   if (!text || (text.trim().startsWith("{") && text.trim().endsWith("}"))) {
     return "This saved result has no readable content.";
@@ -435,5 +560,6 @@ export function getGenerationTypeLabel(type: string): string {
   if (type === "mcq") return "Practice Quiz";
   if (type === "flashcards") return "Flashcards";
   if (type === "important_questions") return "Important Questions";
+  if (type === "doubt_answer") return "Doubt Answer";
   return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }

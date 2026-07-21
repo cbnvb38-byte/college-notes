@@ -141,6 +141,10 @@ export default function NoteDetailsClient({
   const [reportDetails, setReportDetails] = useState("");
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
+  // Ask Doubt state
+  const [isDoubtModalOpen, setIsDoubtModalOpen] = useState(false);
+  const [doubtQuestion, setDoubtQuestion] = useState("");
+
   const handleToggleBookmark = async () => {
     if (isBookmarking) return; // Guard against rapid clicks
 
@@ -296,14 +300,14 @@ export default function NoteDetailsClient({
     return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
   };
 
-  const handleGenerate = async (generationType: GenerationType) => {
+  const handleGenerate = async (generationType: GenerationType, userQuestion?: string) => {
     if (!userId) {
       toast.error("Please sign in to generate study materials.");
       return;
     }
     
-    // For now, only summary, mcq, flashcards, and important_questions are enabled.
-    if (generationType !== "summary" && generationType !== "mcq" && generationType !== "flashcards" && generationType !== "important_questions") {
+    // For now, only summary, mcq, flashcards, important_questions, and doubt_answer are enabled.
+    if (generationType !== "summary" && generationType !== "mcq" && generationType !== "flashcards" && generationType !== "important_questions" && generationType !== "doubt_answer") {
       toast.info("This feature will be enabled in a later phase.");
       return;
     }
@@ -313,7 +317,7 @@ export default function NoteDetailsClient({
     setShowScannedConfirmation(false);
     
     try {
-      const res = await generateStudyMaterialAction(note.id, generationType);
+      const res = await generateStudyMaterialAction(note.id, generationType, userQuestion);
       
       if (res.success && res.data) {
         toast.success(res.message || "Generated successfully.");
@@ -350,7 +354,7 @@ export default function NoteDetailsClient({
     setShowScannedConfirmation(false);
     
     try {
-      const res = await generateWithDocumentFallback(note.id, fallbackGenerationType);
+      const res = await generateWithDocumentFallback(note.id, fallbackGenerationType, doubtQuestion || undefined);
       
       if (res.success && res.data) {
         toast.success(res.message || "Generated successfully.");
@@ -367,6 +371,16 @@ export default function NoteDetailsClient({
     } finally {
       setIsGenerating(null);
     }
+  };
+
+  const handleAskDoubtSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!doubtQuestion.trim()) {
+      toast.error("Please enter a question.");
+      return;
+    }
+    setIsDoubtModalOpen(false);
+    handleGenerate("doubt_answer", doubtQuestion);
   };
 
   return (
@@ -668,6 +682,10 @@ export default function NoteDetailsClient({
                           toast.info(`This tool will be enabled in a later Phase 8 step.`);
                           return;
                         }
+                        if (tool.generationType === "doubt_answer") {
+                          setIsDoubtModalOpen(true);
+                          return;
+                        }
                         handleGenerate(tool.generationType);
                       }}
                     >
@@ -715,6 +733,10 @@ export default function NoteDetailsClient({
                           onClick={() => {
                             if (!tool.enabled) {
                               toast.info("This tool will be enabled in a later Phase 8 step.");
+                              return;
+                            }
+                            if (tool.generationType === "doubt_answer") {
+                              setIsDoubtModalOpen(true);
                               return;
                             }
                             handleGenerate(tool.generationType);
@@ -958,6 +980,63 @@ export default function NoteDetailsClient({
                     ) : (
                       "Submit Report"
                     )}
+                  </Button>
+                </div>
+              </CardContent>
+            </form>
+          </Card>
+        </div>
+      )}
+
+      {/* Ask Doubt Modal */}
+      {isDoubtModalOpen && (
+        <div className="fixed inset-0 bg-zinc-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <Card className="bg-zinc-900 border-zinc-800 w-full max-w-md shadow-2xl overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-violet-500/5 pointer-events-none" />
+            <CardHeader className="border-b border-zinc-800/40 relative z-10 flex flex-row items-center gap-3">
+              <div className="bg-indigo-500/10 p-2.5 rounded-xl border border-indigo-500/20 shrink-0">
+                <Sparkles className="h-5 w-5 text-indigo-400" />
+              </div>
+              <div className="flex flex-col">
+                <CardTitle className="text-base font-bold text-zinc-100">Ask a Doubt</CardTitle>
+                <p className="text-xs text-zinc-400 mt-0.5">Study Copilot will answer from this note.</p>
+              </div>
+            </CardHeader>
+            <form onSubmit={handleAskDoubtSubmit} className="relative z-10">
+              <CardContent className="pt-5 flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <textarea
+                    value={doubtQuestion}
+                    onChange={(e) => setDoubtQuestion(e.target.value)}
+                    required
+                    maxLength={300}
+                    placeholder="e.g. What is the difference between compiler and interpreter?"
+                    className="w-full bg-zinc-950/80 border border-zinc-800/60 rounded-xl p-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 focus:outline-none min-h-[100px] resize-none"
+                    autoFocus
+                  />
+                  <div className="text-[10px] text-zinc-500 text-right">
+                    {doubtQuestion.length}/300
+                  </div>
+                </div>
+                
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsDoubtModalOpen(false);
+                      setDoubtQuestion("");
+                    }}
+                    className="flex-1 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 font-semibold"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={!doubtQuestion.trim()}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-2 disabled:opacity-50"
+                  >
+                    Ask Copilot <Sparkles className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>

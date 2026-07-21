@@ -110,7 +110,7 @@ export default async function GenerationReaderPage({ params }: PageProps) {
             </span>
           </div>
           <h1 className="text-xl font-black text-zinc-100 tracking-tight leading-tight">
-            {gen.generation_type === "mcq" ? "Generated Practice Quiz" : gen.generation_type === "flashcards" ? "Generated Flashcards" : gen.generation_type === "important_questions" ? "Generated Important Questions" : "Generated Study Summary"}
+            {gen.generation_type === "mcq" ? "Generated Practice Quiz" : gen.generation_type === "flashcards" ? "Generated Flashcards" : gen.generation_type === "important_questions" ? "Generated Important Questions" : gen.generation_type === "doubt_answer" ? "Answered Doubt" : "Generated Study Summary"}
           </h1>
           <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
             <span>
@@ -139,6 +139,8 @@ export default async function GenerationReaderPage({ params }: PageProps) {
                 ? "This Flashcards result was saved without readable content. Please regenerate it."
                 : gen.generation_type === "important_questions"
                 ? "This Important Questions result was saved without readable content. Please regenerate it."
+                : gen.generation_type === "doubt_answer"
+                ? "This Doubt Answer was saved without readable content. Please regenerate it."
                 : "No result text available for this generation."}
             </p>
           </div>

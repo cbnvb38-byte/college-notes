@@ -5,7 +5,7 @@ import { GenerationType } from "@/lib/ai/types";
 import { createClient } from "@supabase/supabase-js";
 import { getStudyContentForNote } from "@/lib/ai/document-content";
 import { GoogleGenAI } from "@google/genai";
-import { parseMCQResult, parseFlashcardsResult, parseImportantQuestionsResult } from "@/lib/ai/result-formatting";
+import { parseMCQResult, parseFlashcardsResult, parseImportantQuestionsResult, parseDoubtAnswerResult } from "@/lib/ai/result-formatting";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -35,11 +35,15 @@ export async function generateStudyMaterialAction(
       return { success: false, error: { message: "Note ID is required." } };
     }
 
-    if (generationType !== "summary" && generationType !== "mcq" && generationType !== "flashcards" && generationType !== "important_questions") {
+    if (generationType !== "summary" && generationType !== "mcq" && generationType !== "flashcards" && generationType !== "important_questions" && generationType !== "doubt_answer") {
       return {
         success: false,
         error: { message: "This tool will be enabled in a later Phase 8 step." },
       };
+    }
+
+    if (generationType === "doubt_answer" && (!question || !question.trim())) {
+      return { success: false, error: { message: "A question is required for Ask Doubt." } };
     }
 
     // 2. Validate note & check approval
@@ -256,6 +260,52 @@ Provided Text:
 """
 ${extractedText}
 """`;
+    } else if (generationType === "doubt_answer") {
+      prompt = `You are an expert AI Study Assistant.
+Your task is to answer the user's doubt.
+First, check if the exact answer is in the provided text.
+If the answer is clearly present in the provided text:
+- answer mainly from the provided text.
+- explain clearly and exam-usefully.
+
+If the answer is only partially present (e.g. mentions the topic but lacks details):
+- first say: "The note mentions this topic but does not fully explain it."
+- then provide a helpful standard academic explanation in general_explanation.
+
+If the answer is not present at all:
+- say: "This exact answer is not clearly available in the note."
+- then, if it is a standard academic concept, still provide a general explanation in general_explanation.
+
+Do not hallucinate that the provided text contains something it does not contain.
+
+Explain like a helpful college tutor. Use simple but strong explanation.
+Use headings and bullet points where useful. Use LaTeX for formulas where needed.
+Make the answer exam-useful and include related concepts from the note.
+Include confidence (high, medium, low) based on how clearly the note supports the answer.
+
+Return ONLY valid JSON.
+Do not wrap in markdown.
+Do not add prose outside JSON.
+
+Required JSON format:
+{
+  "question": "${question?.replace(/"/g, '\\"')}",
+  "note_based_answer": "What can be answered from the note/PDF. If missing, say it clearly.",
+  "general_explanation": "Helpful standard academic explanation if the note is incomplete.",
+  "simple_explanation": "Very simple explanation for quick understanding",
+  "key_points": ["Point 1", "Point 2", "Point 3"],
+  "related_topics": ["Topic 1", "Topic 2"],
+  "exam_tip": "How to write this in exam or what to remember",
+  "confidence": "high|medium|low",
+  "source_status": "fully_answered_from_note|partially_available_in_note|not_available_in_note"
+}
+
+User's Doubt: "${question}"
+
+Provided Text:
+"""
+${extractedText}
+"""`;
     }
 
     let resultText = "";
@@ -311,7 +361,7 @@ ${extractedText}
         resultText: saveResponse.data!.resultText,
         resultJson: saveResponse.data!.resultJson,
       },
-      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : generationType === "flashcards" ? "Flashcards generated and saved to Study Copilot." : generationType === "important_questions" ? "Important Questions generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
+      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : generationType === "flashcards" ? "Flashcards generated and saved to Study Copilot." : generationType === "important_questions" ? "Important Questions generated and saved to Study Copilot." : generationType === "doubt_answer" ? "Doubt Answer generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
       error: undefined,
     };
   } catch (error: any) {
@@ -320,7 +370,7 @@ ${extractedText}
   }
 }
 
-export async function generateWithDocumentFallback(noteId: string, generationType: GenerationType) {
+export async function generateWithDocumentFallback(noteId: string, generationType: GenerationType, question?: string) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -512,6 +562,48 @@ Required JSON format:
     }
   ]
 }`;
+    } else if (generationType === "doubt_answer") {
+      prompt = `You are Study Copilot. Read the uploaded PDF document. It may be scanned or image-based. Use document understanding/OCR to extract the readable study content.
+Your task is to answer the user's doubt.
+First, check if the exact answer is in the provided document.
+If the answer is clearly present in the provided document:
+- answer mainly from the provided document.
+- explain clearly and exam-usefully.
+
+If the answer is only partially present (e.g. mentions the topic but lacks details):
+- first say: "The note mentions this topic but does not fully explain it."
+- then provide a helpful standard academic explanation in general_explanation.
+
+If the answer is not present at all:
+- say: "This exact answer is not clearly available in the note."
+- then, if it is a standard academic concept, still provide a general explanation in general_explanation.
+
+Do not hallucinate that the provided document contains something it does not contain.
+
+Explain like a helpful college tutor. Use simple but strong explanation.
+Use headings and bullet points where useful. Use LaTeX for formulas where needed.
+Make the answer exam-useful and include related concepts from the note.
+Include confidence (high, medium, low) based on how clearly the note supports the answer.
+If the document is unreadable, blurry, or does not contain enough study content, say clearly that the document could not be read.
+
+Return ONLY valid JSON.
+Do not wrap in markdown.
+Do not add prose outside JSON.
+
+Required JSON format:
+{
+  "question": "${question?.replace(/"/g, '\\"')}",
+  "note_based_answer": "What can be answered from the note/PDF. If missing, say it clearly.",
+  "general_explanation": "Helpful standard academic explanation if the note is incomplete.",
+  "simple_explanation": "Very simple explanation for quick understanding",
+  "key_points": ["Point 1", "Point 2", "Point 3"],
+  "related_topics": ["Topic 1", "Topic 2"],
+  "exam_tip": "How to write this in exam or what to remember",
+  "confidence": "high|medium|low",
+  "source_status": "fully_answered_from_note|partially_available_in_note|not_available_in_note"
+}
+
+User's Doubt: "${question}"`;
     }
 
     devLog("Calling Gemini with PDF inlineData...");
@@ -572,7 +664,7 @@ Required JSON format:
         resultText: saveResponse.data!.resultText,
         resultJson: saveResponse.data!.resultJson,
       },
-      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : generationType === "flashcards" ? "Flashcards generated and saved to Study Copilot." : generationType === "important_questions" ? "Important Questions generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
+      message: generationType === "mcq" ? "Practice Quiz generated and saved to Study Copilot." : generationType === "flashcards" ? "Flashcards generated and saved to Study Copilot." : generationType === "important_questions" ? "Important Questions generated and saved to Study Copilot." : generationType === "doubt_answer" ? "Doubt Answer generated and saved to Study Copilot." : "Summary generated and saved to Study Copilot.",
       error: undefined,
     };
   } catch (error: any) {
@@ -631,6 +723,17 @@ async function saveAIGenerationResult({
       devLog("[Important Questions Save] parse succeeded, sections:", parsed.sections.length);
     } else {
       devLog("[Important Questions Save] JSON parse completely failed, storing raw fallback in result_text");
+      resultJson = null;
+    }
+  } else if (generationType === "doubt_answer") {
+    const parsed = parseDoubtAnswerResult(finalResultText, null);
+    devLog("[Doubt Answer Save] raw output length:", finalResultText?.length ?? 0);
+    if (parsed && parsed.answer) {
+      resultJson = parsed;
+      finalResultText = null;
+      devLog("[Doubt Answer Save] parse succeeded");
+    } else {
+      devLog("[Doubt Answer Save] JSON parse completely failed, storing raw fallback in result_text");
       resultJson = null;
     }
   }

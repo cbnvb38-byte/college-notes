@@ -17,7 +17,7 @@ import {
   HelpCircle,
   GraduationCap
 } from "lucide-react";
-import { parseSummarySections, getGenerationTypeLabel, getCopyableResultText, parseMCQResult, parseFlashcardsResult, parseImportantQuestionsResult } from "@/lib/ai/result-formatting";
+import { parseSummarySections, getGenerationTypeLabel, getCopyableResultText, parseMCQResult, parseFlashcardsResult, parseImportantQuestionsResult, parseDoubtAnswerResult } from "@/lib/ai/result-formatting";
 
 import { StudyMarkdownRenderer } from "./study-markdown-renderer";
 
@@ -237,6 +237,132 @@ function ImportantQuestionCard({ question, index }: { question: any, index: numb
 }
 
 
+// ─── Doubt Answer Component ─────────────────────────────────────────────────────
+
+function DoubtAnswerCard({ data }: { data: any }) {
+  let confidenceColor = "bg-zinc-800 text-zinc-300 border-zinc-700";
+  if (data.confidence === "high") confidenceColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+  if (data.confidence === "medium") confidenceColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+  if (data.confidence === "low") confidenceColor = "bg-red-500/10 text-red-400 border-red-500/20";
+
+  let statusText = "";
+  let statusColor = "";
+  if (data.source_status === "fully_answered_from_note") {
+    statusText = "Fully answered from note";
+    statusColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+  } else if (data.source_status === "partially_available_in_note") {
+    statusText = "Partially available in note";
+    statusColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+  } else if (data.source_status === "not_available_in_note") {
+    statusText = "Not available in note";
+    statusColor = "bg-red-500/10 text-red-400 border-red-500/20";
+  }
+
+  return (
+    <div className="flex flex-col p-6 gap-6">
+      {/* Question Header */}
+      <div className="flex flex-col gap-3 pb-5 border-b border-zinc-800/60">
+        <div className="flex items-center gap-2">
+          <HelpCircle className="h-5 w-5 text-indigo-400 shrink-0" />
+          <h2 className="text-base font-bold text-zinc-100">{data.question}</h2>
+        </div>
+        <div className="flex flex-wrap gap-2 pl-7">
+          {data.confidence && (
+             <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${confidenceColor}`}>
+              {data.confidence} Confidence
+            </span>
+          )}
+          {statusText && (
+             <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${statusColor}`}>
+              {statusText}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Answer Body */}
+      <div className="flex flex-col gap-6 pl-7">
+        {data.answer && (
+          <div className="text-sm text-zinc-200 leading-relaxed">
+            <StudyMarkdownRenderer content={data.answer} />
+          </div>
+        )}
+
+        {data.note_based_answer && (
+          <div className="flex flex-col gap-2 mt-1">
+            <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5" /> From Your Note
+            </h4>
+            <div className="text-sm text-zinc-200 leading-relaxed bg-zinc-900/30 p-4 rounded-xl border border-zinc-800/60">
+              <StudyMarkdownRenderer content={data.note_based_answer} />
+            </div>
+          </div>
+        )}
+
+        {data.general_explanation && (
+          <div className="flex flex-col gap-2 mt-1">
+            <h4 className="text-[10px] font-bold text-violet-400 uppercase tracking-wider flex items-center gap-1.5">
+              <GraduationCap className="h-3.5 w-3.5" /> General Explanation
+            </h4>
+            <div className="text-sm text-zinc-300 leading-relaxed bg-violet-500/5 p-4 rounded-xl border border-violet-500/20">
+              <StudyMarkdownRenderer content={data.general_explanation} />
+            </div>
+          </div>
+        )}
+
+        {data.simple_explanation && (
+          <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5">
+            <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" /> In Simple Words
+            </h4>
+            <div className="text-sm text-indigo-200/90 leading-relaxed">
+              <StudyMarkdownRenderer content={data.simple_explanation} />
+            </div>
+          </div>
+        )}
+
+        {(data.key_points && data.key_points.length > 0) && (
+          <div className="flex flex-col gap-2">
+            <h4 className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Check className="h-3 w-3" /> Key Points
+            </h4>
+            <ul className="flex flex-col gap-1.5 list-none pl-0">
+              {data.key_points.map((kp: string, idx: number) => (
+                <li key={idx} className="text-sm text-zinc-300 flex items-start gap-2">
+                  <span className="text-emerald-500/50 mt-1">&bull;</span>
+                  <StudyMarkdownRenderer content={kp} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {data.exam_tip && (
+          <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 mt-2">
+            <h4 className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Target className="h-3.5 w-3.5" /> Exam Tip
+            </h4>
+            <div className="text-sm text-amber-200/90 leading-relaxed">
+              <StudyMarkdownRenderer content={data.exam_tip} />
+            </div>
+          </div>
+        )}
+
+        {(data.related_topics && data.related_topics.length > 0) && (
+          <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-zinc-800/40">
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Related:</span>
+            {data.related_topics.map((rt: string, idx: number) => (
+              <span key={idx} className="text-[10px] font-semibold text-zinc-400 bg-zinc-800/50 border border-zinc-700 px-2 py-1 rounded-md">
+                {rt}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function GeneratedResultCard({
@@ -254,20 +380,24 @@ export function GeneratedResultCard({
   const isMcq = generationType === "mcq";
   const isFlashcards = generationType === "flashcards";
   const isImportantQuestions = generationType === "important_questions";
+  const isDoubtAnswer = generationType === "doubt_answer";
 
   const parsedQuestions = isMcq ? parseMCQResult(resultText, resultJson || null) : null;
   const parsedCards = isFlashcards ? parseFlashcardsResult(resultText, resultJson || null) : null;
   const parsedImportant = isImportantQuestions ? parseImportantQuestionsResult(resultText, resultJson || null) : null;
+  const parsedDoubtAnswer = isDoubtAnswer ? parseDoubtAnswerResult(resultText, resultJson || null) : null;
 
   const questions = parsedQuestions || [];
   const cards = parsedCards || [];
   const importantSections = parsedImportant?.sections || [];
+  const doubtAnswerData = parsedDoubtAnswer;
 
   const validMcq = isMcq && questions.length > 0;
   const validFlashcards = isFlashcards && cards.length > 0;
   const validImportant = isImportantQuestions && importantSections.length > 0;
+  const validDoubtAnswer = isDoubtAnswer && doubtAnswerData !== null;
   
-  const sections = !isMcq && !isFlashcards && !isImportantQuestions ? parseSummarySections(resultText, resultJson || null) : [];
+  const sections = !isMcq && !isFlashcards && !isImportantQuestions && !isDoubtAnswer ? parseSummarySections(resultText, resultJson || null) : [];
 
   const handleCopy = async () => {
     try {
@@ -315,7 +445,7 @@ export function GeneratedResultCard({
           </div>
           {noteTitle && (
             <p className="text-sm font-semibold text-zinc-100 truncate">
-              {generationType === "mcq" ? "Generated Practice Quiz" : generationType === "flashcards" ? "Generated Flashcards" : generationType === "important_questions" ? "Generated Important Questions" : "Generated Study Summary"}
+              {generationType === "mcq" ? "Generated Practice Quiz" : generationType === "flashcards" ? "Generated Flashcards" : generationType === "important_questions" ? "Generated Important Questions" : generationType === "doubt_answer" ? "Answered Doubt" : "Generated Study Summary"}
             </p>
           )}
           <div className="flex items-center gap-3 flex-wrap">
@@ -372,7 +502,7 @@ export function GeneratedResultCard({
       </div>
 
       {/* ── Body: sections ── */}
-      {expanded && (!isMcq && !isFlashcards) && (
+      {expanded && (!isMcq && !isFlashcards && !isImportantQuestions && !isDoubtAnswer) && (
         <div className="flex flex-col gap-0 divide-y divide-zinc-800/40">
           {sections.map((section, i) => {
             const Icon = SECTION_ICONS[section.heading] ?? BookOpen;
@@ -446,6 +576,11 @@ export function GeneratedResultCard({
         </div>
       )}
 
+      {/* ── Body: Doubt Answer ── */}
+      {expanded && validDoubtAnswer && (
+        <DoubtAnswerCard data={doubtAnswerData} />
+      )}
+
       {/* ── Body: MCQ Fallback ── */}
       {expanded && isMcq && !validMcq && (
         <div className="p-5 flex flex-col gap-4 text-sm text-zinc-300">
@@ -494,6 +629,22 @@ export function GeneratedResultCard({
         </div>
       )}
 
+      {/* ── Body: Doubt Answer Fallback ── */}
+      {expanded && isDoubtAnswer && !validDoubtAnswer && (
+        <div className="p-5 flex flex-col gap-4 text-sm text-zinc-300">
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 p-4 rounded-xl flex items-start gap-3">
+            <HelpCircle className="h-5 w-5 mt-0.5 shrink-0" />
+            <p>Doubt answer was generated but could not be parsed correctly.</p>
+          </div>
+          <details className="text-xs">
+            <summary className="cursor-pointer text-zinc-500 font-semibold mb-2 hover:text-zinc-300">View raw fallback</summary>
+            <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg overflow-x-auto">
+              <pre className="text-zinc-400 whitespace-pre-wrap">{resultText || JSON.stringify(resultJson, null, 2)}</pre>
+            </div>
+          </details>
+        </div>
+      )}
+
       {/* ── Compact preview (when collapsed) ── */}
       {!expanded && (
         <div className="px-5 py-4">
@@ -504,6 +655,8 @@ export function GeneratedResultCard({
               ? `${cards.length} flashcards generated. Click Open to view and practice.`
               : validImportant
               ? `Important questions generated across ${importantSections.length} sections. Click Open to view.`
+              : validDoubtAnswer
+              ? `Doubt answered. Click Open to view.`
               : (sections[0]?.content.slice(0, 200).replace(/\*\*/g, "") ?? "Click Open to view the full result.")
             }
           </p>
