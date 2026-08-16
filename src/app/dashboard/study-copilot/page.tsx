@@ -37,7 +37,13 @@ export const metadata = {
 
 export default async function StudyCopilotPage() {
   const { userId } = await auth();
-  const usageResult = await getUserAIUsage();
+
+  // Parallelize AI usage and saved generations fetching
+  const [usageResult, savedGenerations] = await Promise.all([
+    getUserAIUsage(),
+    userId ? getMyAIGenerations() : Promise.resolve({ success: true, data: [] })
+  ]);
+  
   const usageState = usageResult.success ? usageResult.data : null;
 
     // Fetch accessible notes for Multi-PDF if premium is active
@@ -64,11 +70,7 @@ export default async function StudyCopilotPage() {
 
   const groupOrder: StudyToolGroup[] = ["Understand", "Practice", "Exam Prep", "Doubt Solving"];
 
-  // Fetch saved summaries server-side (no Gemini call, no usage increment)
-  let savedGenerations: Awaited<ReturnType<typeof getMyAIGenerations>> = { success: true, data: [] };
-  if (userId) {
-    savedGenerations = await getMyAIGenerations();
-  }
+  // Saved generations already fetched in parallel above
 
   // Narrow to the data array once, safe for all downstream JSX
   const savedData = savedGenerations.success ? savedGenerations.data : [];

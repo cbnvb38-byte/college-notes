@@ -32,39 +32,34 @@ export default function Dashboard() {
       try {
         setIsLoading(true);
 
-        // Fetch user profile
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single();
+        // Fetch all independent data concurrently
+        const [profileRes, notesRes, favsRes, rvRes] = await Promise.allSettled([
+          supabase.from("profiles").select("*").eq("id", userId).single(),
+          supabase.from("notes").select("*").eq("author_id", userId).order("created_at", { ascending: false }),
+          supabase.from("bookmarks").select("*, notes(*)").eq("user_id", userId),
+          fetchRecentlyViewedNotesAction(10)
+        ]);
 
-        if (profileError) throw profileError;
-        setProfile(profileData);
+        if (profileRes.status === "fulfilled" && !profileRes.value.error) {
+          setProfile(profileRes.value.data);
+        } else if (profileRes.status === "fulfilled" && profileRes.value.error) {
+          console.warn("Profile fetch error:", profileRes.value.error);
+        }
 
-        // Fetch user's uploaded notes
-        const { data: notesData, error: notesError } = await supabase
-          .from("notes")
-          .select("*")
-          .eq("author_id", userId)
-          .order("created_at", { ascending: false });
+        if (notesRes.status === "fulfilled" && !notesRes.value.error) {
+          setNotes(notesRes.value.data || []);
+        } else if (notesRes.status === "fulfilled" && notesRes.value.error) {
+          console.warn("Notes fetch error:", notesRes.value.error);
+        }
 
-        if (notesError) throw notesError;
-        setNotes(notesData || []);
+        if (favsRes.status === "fulfilled" && !favsRes.value.error) {
+          setFavorites((favsRes.value.data as any) || []);
+        } else if (favsRes.status === "fulfilled" && favsRes.value.error) {
+          console.warn("Favorites fetch error:", favsRes.value.error);
+        }
 
-        // Fetch user's bookmarked favorites
-        const { data: favsData, error: favsError } = await supabase
-          .from("bookmarks")
-          .select("*, notes(*)")
-          .eq("user_id", userId);
-
-        if (favsError) throw favsError;
-        setFavorites((favsData as any) || []);
-
-        // Fetch user's recently viewed notes via Server Action
-        const rvRes = await fetchRecentlyViewedNotesAction(10);
-        if (rvRes.success && rvRes.data) {
-          setRecentlyViewed(rvRes.data);
+        if (rvRes.status === "fulfilled" && rvRes.value.success && rvRes.value.data) {
+          setRecentlyViewed(rvRes.value.data);
         }
 
       } catch (err: unknown) {

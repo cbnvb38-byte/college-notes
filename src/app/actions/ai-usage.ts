@@ -43,12 +43,25 @@ export async function getUserAIUsage(): Promise<
 
     const supabase = makeClient();
 
-    // Get user plan
-    const { data: profileData, error: profileError } = await supabase
-      .from("profiles")
-      .select("plan, premium_status, premium_expires_at")
-      .eq("id", userId)
-      .single();
+    const currentMonth = getCurrentMonthString();
+
+    // Fetch user plan and current month usage concurrently
+    const [profileResult, usageResult] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("plan, premium_status, premium_expires_at")
+        .eq("id", userId)
+        .single(),
+      supabase
+        .from("ai_usage")
+        .select("generations_count")
+        .eq("user_id", userId)
+        .eq("usage_month", currentMonth)
+        .single()
+    ]);
+
+    const { data: profileData, error: profileError } = profileResult;
+    const { data: usageData, error: usageError } = usageResult;
 
     if (profileError && profileError.code !== "PGRST116") {
       console.error("[ai-usage] getUserAIUsage (profile):", profileError);
@@ -65,16 +78,6 @@ export async function getUserAIUsage(): Promise<
       premiumExpiresAt,
     } = resolveUserPlan(profileData);
     
-    const currentMonth = getCurrentMonthString();
-
-    // Get current month usage
-    const { data: usageData, error: usageError } = await supabase
-      .from("ai_usage")
-      .select("generations_count")
-      .eq("user_id", userId)
-      .eq("usage_month", currentMonth)
-      .single();
-
     if (usageError && usageError.code !== "PGRST116") {
       console.error("[ai-usage] getUserAIUsage (usage):", usageError);
       return { success: false, error: "Failed to fetch AI usage." };
@@ -114,12 +117,25 @@ export async function checkAILimitBeforeGeneration(userId: string): Promise<{
   try {
     const supabase = makeClient();
 
-    // Get user plan
-    const { data: profileData, error: profileError } = await supabase
-      .from("profiles")
-      .select("plan, premium_status, premium_expires_at")
-      .eq("id", userId)
-      .single();
+    const currentMonth = getCurrentMonthString();
+
+    // Fetch user plan and usage concurrently
+    const [profileResult, usageResult] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("plan, premium_status, premium_expires_at")
+        .eq("id", userId)
+        .single(),
+      supabase
+        .from("ai_usage")
+        .select("generations_count")
+        .eq("user_id", userId)
+        .eq("usage_month", currentMonth)
+        .single()
+    ]);
+
+    const { data: profileData, error: profileError } = profileResult;
+    const { data: usageData, error: usageError } = usageResult;
 
     if (profileError && profileError.code !== "PGRST116") {
       console.error("[ai-usage] check limit (profile):", profileError);
@@ -127,15 +143,6 @@ export async function checkAILimitBeforeGeneration(userId: string): Promise<{
     }
 
     const { effectivePlan: plan, limit: monthlyLimit } = resolveUserPlan(profileData);
-    const currentMonth = getCurrentMonthString();
-
-    // Get current month usage
-    const { data: usageData, error: usageError } = await supabase
-      .from("ai_usage")
-      .select("generations_count")
-      .eq("user_id", userId)
-      .eq("usage_month", currentMonth)
-      .single();
 
     if (usageError && usageError.code !== "PGRST116") {
       console.error("[ai-usage] check limit (usage):", usageError);

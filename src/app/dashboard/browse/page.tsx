@@ -1,4 +1,5 @@
 import { fetchBranches, fetchRecommendedNotesAction, fetchTrendingNotesAction, fetchRecentlyViewedNotesAction } from "@/app/actions/notes";
+import { getCurrentUserBookmarkedNoteIds } from "@/app/actions/bookmarks";
 import BrowseNotesClient from "./browse-client";
 import { DiscoverySections } from "./discovery-sections";
 import { Sparkles, FileWarning, UploadCloud, Bot } from "lucide-react";
@@ -15,17 +16,19 @@ export const metadata = {
 
 export default async function BrowseNotesPage() {
   // Fetch engineering branches, bookmarks, recommendations, trending, and recently viewed on server
-  const [branchResult, recResult, trendResult, recentResult] = await Promise.allSettled([
+  const [branchResult, recResult, trendResult, recentResult, bookmarksResult] = await Promise.allSettled([
     fetchBranches(),
     fetchRecommendedNotesAction(3),
     fetchTrendingNotesAction(3),
-    fetchRecentlyViewedNotesAction(4)
+    fetchRecentlyViewedNotesAction(4),
+    getCurrentUserBookmarkedNoteIds()
   ]);
 
   const branchRes = branchResult.status === "fulfilled" ? branchResult.value : { success: false, error: "Failed to load branches" };
   const recRes = recResult.status === "fulfilled" ? recResult.value : { success: false, data: [] };
   const trendRes = trendResult.status === "fulfilled" ? trendResult.value : { success: false, data: [] };
   const recentRes = recentResult.status === "fulfilled" ? recentResult.value : { success: false, data: undefined };
+  const bookmarksRes = bookmarksResult.status === "fulfilled" ? bookmarksResult.value : { success: false, data: [] };
 
   if (!branchRes.success || "error" in branchRes) {
     console.error("[BrowseNotesPage Server Fetch Error]:", "error" in branchRes ? branchRes.error : "Unknown error");
@@ -48,9 +51,7 @@ export default async function BrowseNotesPage() {
 
   const branches = ("data" in branchRes ? branchRes.data : []) || [];
   
-  // Also fetch the current user's bookmarked notes for initial UI state
-  const { getCurrentUserBookmarkedNoteIds } = await import("@/app/actions/bookmarks");
-  const bookmarksRes = await getCurrentUserBookmarkedNoteIds();
+  // Extract bookmarked notes for initial UI state
   const initialBookmarkedIds = bookmarksRes.success && "data" in bookmarksRes ? bookmarksRes.data : [];
 
   const recommendedNotes = recRes.success && "data" in recRes ? recRes.data : [];
