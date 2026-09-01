@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 
@@ -31,7 +32,10 @@ export default function RootLayout({
         lang="en"
         className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
       >
-        <body className="min-h-full flex flex-col">{children}</body>
+        <body className="min-h-full flex flex-col">
+          {children}
+          <SpeedInsights />
+        </body>
       </html>
     </ClerkProvider>
   );
